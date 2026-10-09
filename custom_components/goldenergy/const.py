@@ -137,7 +137,7 @@ DATA_TIER: Final = "tier"
 DATA_METER_SERIAL: Final = "meter_serial"
 DATA_METER_NUMBER: Final = "meter_number"
 DATA_METER_DIGITS: Final = "meter_digits"
-# Codes of the service's active campaigns, comma-joined (e.g. "DIGITAL_08/26").
+# Codes of the service's active campaigns, comma-joined (e.g. "DIGITAL_01/26").
 DATA_CAMPAIGNS: Final = "campaigns"
 DATA_SMART_METER: Final = "smart_meter"
 # [{"iso": "2026-07-30", "index": 320.0}], oldest first. ``index`` is the

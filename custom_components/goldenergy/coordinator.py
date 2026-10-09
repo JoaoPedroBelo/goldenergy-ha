@@ -328,7 +328,7 @@ def _normalise_service(
 def _active_campaigns(campaigns: Any) -> str | None:
     """Return the active campaign codes, comma-joined, or ``None`` if there is none.
 
-    Campaigns arrive as ``[{"no": "DIGITAL_08/26", "name": "", "active": true}]``;
+    Campaigns arrive as ``[{"no": "DIGITAL_01/26", "name": "", "active": true}]``;
     ``name`` was empty live, so the code is what identifies them.
     """
     if not isinstance(campaigns, list):
