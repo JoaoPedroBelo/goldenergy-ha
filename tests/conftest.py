@@ -126,7 +126,12 @@ def electricity_service_payload() -> dict:
         "gas": None,
         "electricity": {
             "energyType": 1,
-            "meter": {"serialNo": "11111111111111", "smartMeter": False},
+            "meter": {
+                "meterNo": "CNTELE0000000",
+                "serialNo": "11111111111111",
+                "smartMeter": False,
+                "recordTypes": [0, 1],
+            },
         },
     }
 

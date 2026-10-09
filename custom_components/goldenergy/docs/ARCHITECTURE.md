@@ -70,7 +70,8 @@ sequenceDiagram
 | `entity.py` | Shared `CoordinatorEntity` base: unique ids, the per-account device, and `_source(energy)` to read either the account's or one energy's data. |
 | `const.py` | `Final`-typed constants: config keys, endpoints, enumerations, entity keys, `coordinator.data` keys, `POLL_HOURS`. |
 | `config_flow.py` | Setup (login → account → energies), re-authentication, and the options flow (energy toggles + gas conversion factor). |
-| `__init__.py` | Entry point: registers the twice-daily schedule, reloads on options change, removes the entities of an energy that was switched off. |
+| `__init__.py` | Entry point: registers the service actions (`async_setup`), the twice-daily schedule, reloads on options change, removes the entities of an energy that was switched off. |
+| `services.py` | The `goldenergy.submit_reading` action: schema, target-entry resolution, hand-off to the coordinator. |
 | `sensor.py` / `binary_sensor.py` | Entities, declared as description tables. A description with `energy` set reads from that energy's dict; without it, from the account. |
 
 ## `coordinator.data` shape
@@ -150,6 +151,21 @@ Readings are spread evenly over the days they cover, and the window is rewritten
 every poll, anchored on what is already stored — the algorithm proven in the CUR
 Gás Natural integration; see the module docstring of `statistics.py`.
 
+## Submitting a reading
+
+`goldenergy.submit_reading` is the integration's only write. The action resolves
+the entry (optional when only one is loaded) and calls
+`GoldenergyCoordinator.async_submit_reading`, which:
+
+1. checks the energy is tracked, the meter is known, there is one value per meter
+   register (`recordTypes`), and the total is not below the last registered index
+   — so an obvious mistake never reaches Goldenergy;
+2. sends it through `GoldenergyClient.async_submit_reading`;
+3. maps Goldenergy's refusals to Home Assistant errors: `errorCode` 1
+   (above-average consumption) becomes a validation error asking to resend with
+   `confirm_above_average`, anything else surfaces Goldenergy's own message;
+4. requests a refresh so the new reading lands in the sensors and statistics.
+
 ## Polling schedule
 
 `update_interval` is `None`. The coordinator registers two fixed daily refreshes
@@ -184,3 +200,4 @@ login; a second rejection fails the update and surfaces as re-authentication.
 6. **Log via `_LOGGER`**, never `print()` (ruff `T20`).
 7. Log in, retry once on 401, then fail.
 8. A statistics failure must never fail the poll.
+9. Submitting a reading is the only write; never call another write endpoint.

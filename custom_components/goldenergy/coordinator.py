@@ -7,12 +7,22 @@ import logging
 from typing import Any
 
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    HomeAssistantError,
+    ServiceValidationError,
+)
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .api import GoldenergyAuthError, GoldenergyClient, GoldenergyError
+from .api import (
+    GoldenergyAboveAverage,
+    GoldenergyAuthError,
+    GoldenergyClient,
+    GoldenergyError,
+    GoldenergyReadingRejected,
+)
 from .const import (
     CONF_BILLING_ACCOUNT,
     CONF_CONVERSION_FACTOR,
@@ -48,6 +58,7 @@ from .const import (
     DATA_METER_INDEX,
     DATA_METER_INDEX_ENERGY,
     DATA_METER_NUMBER,
+    DATA_METER_RECORD_TYPES,
     DATA_METER_SERIAL,
     DATA_NEXT_READING_DATE,
     DATA_READINGS,
@@ -182,6 +193,90 @@ class GoldenergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception:  # a stats failure must never fail the poll
             _LOGGER.warning("Failed to import Goldenergy statistics", exc_info=True)
 
+    async def async_submit_reading(
+        self,
+        energy: str,
+        values: list[int],
+        reading_date: date,
+        *,
+        confirm_above_average: bool = False,
+    ) -> None:
+        """Communicate a meter reading for one energy, then refresh.
+
+        Checked here before anything is sent, so an obvious mistake never reaches
+        Goldenergy: the energy must be tracked, there must be one value per meter
+        register, and the total may not fall below the last registered index.
+        Goldenergy validates again server-side; its refusals are surfaced with the
+        reason it gives.
+        """
+        service = (self.data or {}).get(DATA_SERVICES, {}).get(energy)
+        if not isinstance(service, dict):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="energy_not_tracked",
+                translation_placeholders={"energy": energy},
+            )
+        meter_no = service.get(DATA_METER_NUMBER)
+        service_no = service.get(DATA_SERVICE_NO)
+        record_types = service.get(DATA_METER_RECORD_TYPES)
+        if not meter_no or not service_no or not isinstance(record_types, list):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="meter_unknown"
+            )
+        if len(values) != len(record_types):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="wrong_register_count",
+                translation_placeholders={
+                    "expected": str(len(record_types)),
+                    "got": str(len(values)),
+                },
+            )
+        last = service.get(DATA_METER_INDEX)
+        if isinstance(last, (int, float)) and sum(values) < last:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="below_last_reading",
+                translation_placeholders={
+                    "value": str(sum(values)),
+                    "last": f"{last:g}",
+                },
+            )
+
+        try:
+            await self.client.async_submit_reading(
+                billing_account=self.billing_account,
+                service_no=str(service_no),
+                energy=energy,
+                meter_no=str(meter_no),
+                reading_date=reading_date,
+                records=[
+                    {"type": int(kind), "value": value}
+                    for kind, value in zip(record_types, values, strict=True)
+                ],
+                confirm_above_average=confirm_above_average,
+            )
+        except GoldenergyAboveAverage as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="above_average"
+            ) from err
+        except GoldenergyReadingRejected as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="reading_rejected",
+                translation_placeholders={"message": err.message},
+            ) from err
+        except GoldenergyError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="submit_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+
+        _LOGGER.info("Submitted a %s reading for %s", energy, reading_date)
+        # Pull the new reading in so the sensors and statistics reflect it.
+        await self.async_request_refresh()
+
     @classmethod
     def _normalise(
         cls,
@@ -295,6 +390,7 @@ def _normalise_service(
         DATA_METER_SERIAL: meter.get("serialNo"),
         DATA_METER_NUMBER: meter.get("meterNo"),
         DATA_METER_DIGITS: meter.get("digits"),
+        DATA_METER_RECORD_TYPES: meter.get("recordTypes"),
         DATA_SMART_METER: meter.get("smartMeter"),
         DATA_CAMPAIGNS: _active_campaigns(service.get("campaignList")),
     }

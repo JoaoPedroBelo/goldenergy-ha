@@ -1,0 +1,44 @@
+submit_reading:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: goldenergy
+    energy:
+      required: true
+      default: gas
+      selector:
+        select:
+          options:
+            - gas
+            - electricity
+          translation_key: energy
+    value:
+      required: false
+      example: 165
+      selector:
+        number:
+          min: 0
+          max: 999999999
+          step: 1
+          mode: box
+    values:
+      required: false
+      example: "[1100, 560]"
+      selector:
+        object:
+    day:
+      required: false
+      default: today
+      selector:
+        select:
+          options:
+            - today
+            - yesterday
+          translation_key: day
+    confirm_above_average:
+      required: false
+      default: false
+      selector:
+        boolean:

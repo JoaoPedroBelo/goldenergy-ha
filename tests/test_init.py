@@ -434,3 +434,80 @@ async def test_bad_credentials_at_setup_trigger_reauth(hass):
     assert entry.state is ConfigEntryState.SETUP_ERROR
     flows = hass.config_entries.flow.async_progress()
     assert [f["context"]["source"] for f in flows] == ["reauth"]
+
+
+async def call_submit(hass: HomeAssistant, **data) -> None:
+    """Call goldenergy.submit_reading and wait for it."""
+    await hass.services.async_call(DOMAIN, "submit_reading", data, blocking=True)
+
+
+async def test_the_submit_action_is_registered(hass, mock_client):
+    await setup_entry(hass)
+
+    assert hass.services.has_service(DOMAIN, "submit_reading")
+
+
+async def test_submitting_a_reading_reaches_goldenergy(hass, mock_client):
+    entry = await setup_entry(hass)
+    mock_client.async_submit_reading = AsyncMock()
+
+    await call_submit(hass, energy="gas", value=325, config_entry_id=entry.entry_id)
+
+    kwargs = mock_client.async_submit_reading.await_args.kwargs
+    assert kwargs["records"] == [{"type": 0, "value": 325}]
+    assert kwargs["reading_date"] == dt_util.now().date()
+    assert kwargs["confirm_above_average"] is False
+
+
+async def test_the_entry_may_be_omitted_when_there_is_only_one(hass, mock_client):
+    await setup_entry(hass)
+    mock_client.async_submit_reading = AsyncMock()
+
+    await call_submit(hass, energy="gas", value=325, day="yesterday")
+
+    kwargs = mock_client.async_submit_reading.await_args.kwargs
+    assert kwargs["reading_date"] == dt_util.now().date() - timedelta(days=1)
+
+
+async def test_a_reading_below_the_last_never_leaves_home_assistant(hass, mock_client):
+    from homeassistant.exceptions import ServiceValidationError
+
+    await setup_entry(hass)
+    mock_client.async_submit_reading = AsyncMock()
+
+    with pytest.raises(ServiceValidationError) as err:
+        await call_submit(hass, energy="gas", value=152)
+
+    assert err.value.translation_key == "below_last_reading"
+    mock_client.async_submit_reading.assert_not_awaited()
+
+
+async def test_a_reading_needs_a_value(hass, mock_client):
+    from homeassistant.exceptions import ServiceValidationError
+
+    await setup_entry(hass)
+
+    with pytest.raises(ServiceValidationError) as err:
+        await call_submit(hass, energy="gas")
+
+    assert err.value.translation_key == "value_required"
+
+
+async def test_value_and_values_are_mutually_exclusive(hass, mock_client):
+    import voluptuous as vol
+
+    await setup_entry(hass)
+
+    with pytest.raises(vol.Invalid):
+        await call_submit(hass, energy="electricity", value=1, values=[1, 2])
+
+
+async def test_an_unknown_entry_is_refused(hass, mock_client):
+    from homeassistant.exceptions import ServiceValidationError
+
+    await setup_entry(hass)
+
+    with pytest.raises(ServiceValidationError) as err:
+        await call_submit(hass, energy="gas", value=325, config_entry_id="nope")
+
+    assert err.value.translation_key == "entry_not_loaded"

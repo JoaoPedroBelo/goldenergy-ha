@@ -27,6 +27,8 @@ behind it. This integration logs in and reads that same API — no HTML scraping
 - **🧾 Billing** — last invoice total and due date, amount still owed, total billed
   over the last 12 months, account balance, and an unpaid-invoice flag
 - **📅 Next reading date** — when the next meter reading is expected
+- **📤 Submit meter readings** — send your reading to Goldenergy from Home
+  Assistant, by hand or from an automation
 - **🤝 Referral code** — your code amigo, its shareable link and how many friends
   it has brought in
 - **🏠 Multi-account** — one entry per billing account, each with its own device
@@ -111,6 +113,54 @@ sparse — a live sensor would put a month of consumption on the poll hour.
 Wire **only one** of the two gas series, or gas is counted twice. The cost series
 covers the whole account — every energy on the invoice — so attach it to one
 source only.
+
+## 📤 Submitting a meter reading
+
+The `goldenergy.submit_reading` action communicates a reading to Goldenergy, just
+like the customer area's form. Try it in **Developer Tools → Actions**:
+
+```yaml
+action: goldenergy.submit_reading
+data:
+  energy: gas
+  value: 165          # the meter index, whole m³
+  day: today          # or yesterday — the only days Goldenergy accepts
+```
+
+For a multi-rate electricity meter, give one value per register instead:
+`values: [1100, 560]`.
+
+Before anything is sent, the reading is checked against the last one Goldenergy
+has registered — a lower value is refused in Home Assistant and never reaches
+Goldenergy. If Goldenergy flags the reading as **above your average
+consumption**, the action fails asking you to check it; send it again with
+`confirm_above_average: true` to submit it anyway. Any other refusal shows
+Goldenergy's own message.
+
+### Example: submit from a meter sensor on reading day
+
+If you already measure the meter in Home Assistant (a pulse counter, an OCR
+camera…), send its value on the day Goldenergy expects a reading:
+
+```yaml
+automation:
+  - alias: Submit the gas reading to Goldenergy
+    triggers:
+      - trigger: time
+        at: "10:00:00"
+    conditions:
+      - condition: template
+        value_template: >
+          {{ states('sensor.<device>_next_reading_date') == now().date() | string }}
+    actions:
+      - action: goldenergy.submit_reading
+        data:
+          energy: gas
+          value: "{{ states('sensor.my_gas_meter') | int }}"
+```
+
+Replace `sensor.<device>_next_reading_date` and `sensor.my_gas_meter` with your
+own entity IDs.
 
 ## 🏷️ Entity IDs
 

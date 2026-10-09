@@ -24,6 +24,7 @@ See docs/API.md for the captured requests this client is based on.
 from __future__ import annotations
 
 import base64
+from datetime import date
 import json
 import logging
 import time
@@ -42,8 +43,10 @@ from .const import (
     EP_LOGIN,
     EP_READINGS,
     EP_SERVICE,
+    EP_SUBMIT_READING,
     MAX_PAGES,
     PAGE_SIZE,
+    READING_ERROR_ABOVE_AVERAGE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -70,6 +73,28 @@ class GoldenergyAuthError(GoldenergyError):
 
 class GoldenergyConnectionError(GoldenergyError):
     """Raised when the API cannot be reached or answers with a server error."""
+
+
+class GoldenergyReadingRejected(GoldenergyError):
+    """Raised when Goldenergy refuses a submitted meter reading.
+
+    Carries the API's own ``errorCode`` and human-readable ``message`` (in
+    Portuguese), e.g. ``"2"`` / "Erro - Leitura inferior à última registada!".
+    """
+
+    def __init__(self, code: str | None, message: str) -> None:
+        """Keep the API's code and message."""
+        super().__init__(f"Reading rejected ({code}): {message}")
+        self.code = code
+        self.message = message
+
+
+class GoldenergyAboveAverage(GoldenergyReadingRejected):
+    """Raised when a reading implies above-average consumption (``errorCode`` 1).
+
+    The web form treats this as a question, not a refusal: it asks the customer
+    to confirm and resends with ``ignoreAboveAverageConsumptionValidation``.
+    """
 
 
 def service_energy(service: Any) -> str | None:
@@ -188,25 +213,31 @@ class GoldenergyClient:
 
     # --- requests ----------------------------------------------------------
 
-    async def _get(
+    async def _request(
         self,
+        method: str,
         path: str,
-        params: dict[str, Any] | None = None,
         *,
+        params: dict[str, Any] | None = None,
+        json_body: dict[str, Any] | None = None,
         allow_retry: bool = True,
-    ) -> Any:
-        """GET an endpoint with the bearer token and return the envelope's ``result``.
+    ) -> dict[str, Any]:
+        """Call an endpoint with the bearer token and return the whole envelope.
 
         A 401 means the token went stale despite the bookkeeping, so it is dropped
-        and the call retried once with a fresh login.
+        and the call retried once with a fresh login. The envelope's ``hasError``
+        is left to the caller: a read treats it as a failure, a reading submission
+        needs its ``errorCode``.
         """
         token = await self._ensure_token()
         session = await self._ensure_session()
         query = {k: str(v) for k, v in (params or {}).items()}
         try:
-            async with session.get(
+            async with session.request(
+                method,
                 f"{API_BASE_URL}{path}",
                 params=query,
+                json=json_body,
                 headers={"Authorization": f"Bearer {token}"},
             ) as resp:
                 if resp.status in {401, 403}:
@@ -226,12 +257,19 @@ class GoldenergyClient:
                 raise
             _LOGGER.debug("Token rejected on %s; logging in again once", path)
             self._forget_token()
-            return await self._get(path, params, allow_retry=False)
+            return await self._request(
+                method, path, params=params, json_body=json_body, allow_retry=False
+            )
         except (aiohttp.ClientError, TimeoutError, ValueError) as err:
             raise GoldenergyConnectionError(f"{path} request failed: {err}") from err
 
         if not isinstance(body, dict):
             raise GoldenergyError(f"{path} returned an unexpected payload")
+        return body
+
+    async def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        """GET an endpoint and return the envelope's ``result``."""
+        body = await self._request("GET", path, params=params)
         if body.get("hasError"):
             # Application errors answer 200 with the reason inside the envelope.
             raise GoldenergyError(
@@ -346,6 +384,54 @@ class GoldenergyClient:
             )
             raw["services"][energy] = {"service": service, "readings": readings}
         return raw
+
+    async def async_submit_reading(
+        self,
+        *,
+        billing_account: str,
+        service_no: str,
+        energy: str,
+        meter_no: str,
+        reading_date: date,
+        records: list[dict[str, int]],
+        confirm_above_average: bool = False,
+    ) -> None:
+        """Communicate a meter reading, exactly as the web form does.
+
+        ``records`` is one ``{"type", "value"}`` per meter register, in the
+        meter's ``recordTypes``. The body is the format the production front end
+        sends (its ``QM_FASE2`` flag is off): ``bcServiceType`` at the top and
+        the meter's ``meterNo``, not its serial number.
+
+        A refusal answers **200 with ``hasError``**: ``errorCode`` ``"1"`` asks to
+        confirm above-average consumption, ``"2"`` means the value is below the
+        last registered reading (verified live).
+        """
+        energy_type = API_ENERGY_TYPE[energy]
+        body: dict[str, Any] = {
+            "billingAccountNo": billing_account,
+            "ServiceNo": service_no,
+            "bcServiceType": energy_type,
+            "reading": {
+                "energyType": energy_type,
+                "meterNo": meter_no,
+                "date": reading_date.isoformat(),
+                "records": records,
+            },
+        }
+        if confirm_above_average:
+            body["ignoreAboveAverageConsumptionValidation"] = True
+
+        envelope = await self._request("POST", EP_SUBMIT_READING, json_body=body)
+        if not envelope.get("hasError"):
+            return
+        code = envelope.get("errorCode")
+        code = str(code) if code is not None else None
+        # The API pads its Portuguese messages with non-breaking spaces.
+        message = " ".join(str(envelope.get("message") or "").split())
+        if code == READING_ERROR_ABOVE_AVERAGE:
+            raise GoldenergyAboveAverage(code, message)
+        raise GoldenergyReadingRejected(code, message or "no reason given")
 
 
 def _service_numbers(account: Any) -> list[str]:

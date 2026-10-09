@@ -3,13 +3,19 @@
 from datetime import date
 from unittest.mock import AsyncMock, patch
 
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    HomeAssistantError,
+    ServiceValidationError,
+)
 from homeassistant.helpers.update_coordinator import UpdateFailed
 import pytest
 
 from custom_components.goldenergy.api import (
+    GoldenergyAboveAverage,
     GoldenergyAuthError,
     GoldenergyConnectionError,
+    GoldenergyReadingRejected,
 )
 from custom_components.goldenergy.const import (
     CONF_BILLING_ACCOUNT,
@@ -424,3 +430,128 @@ def test_a_configured_factor_is_used(hass):
     )
 
     assert coordinator.conversion_factor == FACTOR
+
+
+READING_DAY = date(2026, 3, 9)
+
+
+def submit_coordinator(hass, raw_payload) -> GoldenergyCoordinator:
+    """A coordinator holding normalised data, with the client mocked."""
+    coordinator = GoldenergyCoordinator(hass, _CONFIG)
+    coordinator.data = normalise(raw_payload)
+    coordinator.client.async_submit_reading = AsyncMock()
+    coordinator.async_request_refresh = AsyncMock()
+    return coordinator
+
+
+async def test_submit_sends_the_reading_and_refreshes(hass, raw_payload):
+    coordinator = submit_coordinator(hass, raw_payload)
+
+    await coordinator.async_submit_reading("gas", [325], READING_DAY)
+
+    coordinator.client.async_submit_reading.assert_awaited_once_with(
+        billing_account=TEST_ACCOUNT,
+        service_no="S0000000001",
+        energy="gas",
+        meter_no="CNTGAS0000000",
+        reading_date=READING_DAY,
+        records=[{"type": 0, "value": 325}],
+        confirm_above_average=False,
+    )
+    # The new reading is pulled in straight away.
+    coordinator.async_request_refresh.assert_awaited_once()
+
+
+async def test_submit_pairs_values_with_the_meter_s_registers(hass, raw_payload):
+    coordinator = submit_coordinator(hass, raw_payload)
+
+    await coordinator.async_submit_reading(
+        "electricity", [1200, 600], READING_DAY, confirm_above_average=True
+    )
+
+    kwargs = coordinator.client.async_submit_reading.await_args.kwargs
+    assert kwargs["records"] == [{"type": 0, "value": 1200}, {"type": 1, "value": 600}]
+    assert kwargs["meter_no"] == "CNTELE0000000"
+    assert kwargs["confirm_above_average"] is True
+
+
+async def test_a_reading_below_the_last_is_refused_before_sending(hass, raw_payload):
+    """The 152-after-158 case: never reaches Goldenergy."""
+    coordinator = submit_coordinator(hass, raw_payload)
+
+    with pytest.raises(ServiceValidationError) as err:
+        await coordinator.async_submit_reading("gas", [152], READING_DAY)
+
+    assert err.value.translation_key == "below_last_reading"
+    assert err.value.translation_placeholders == {"value": "152", "last": "320"}
+    coordinator.client.async_submit_reading.assert_not_awaited()
+
+
+async def test_an_untracked_energy_is_refused(hass, raw_payload):
+    del raw_payload["services"]["electricity"]
+    coordinator = submit_coordinator(hass, raw_payload)
+
+    with pytest.raises(ServiceValidationError) as err:
+        await coordinator.async_submit_reading("electricity", [1, 2], READING_DAY)
+
+    assert err.value.translation_key == "energy_not_tracked"
+
+
+async def test_the_wrong_number_of_registers_is_refused(hass, raw_payload):
+    coordinator = submit_coordinator(hass, raw_payload)
+
+    with pytest.raises(ServiceValidationError) as err:
+        await coordinator.async_submit_reading("electricity", [2000], READING_DAY)
+
+    assert err.value.translation_key == "wrong_register_count"
+    assert err.value.translation_placeholders == {"expected": "2", "got": "1"}
+
+
+async def test_an_unknown_meter_is_refused(hass, raw_payload):
+    raw_payload["services"]["gas"]["service"]["gas"]["meter"] = None
+    coordinator = submit_coordinator(hass, raw_payload)
+
+    with pytest.raises(ServiceValidationError) as err:
+        await coordinator.async_submit_reading("gas", [325], READING_DAY)
+
+    assert err.value.translation_key == "meter_unknown"
+
+
+async def test_above_average_consumption_asks_to_confirm(hass, raw_payload):
+    coordinator = submit_coordinator(hass, raw_payload)
+    coordinator.client.async_submit_reading.side_effect = GoldenergyAboveAverage(
+        "1", "Consumo acima da média"
+    )
+
+    with pytest.raises(ServiceValidationError) as err:
+        await coordinator.async_submit_reading("gas", [900], READING_DAY)
+
+    assert err.value.translation_key == "above_average"
+    coordinator.async_request_refresh.assert_not_awaited()
+
+
+async def test_a_refusal_surfaces_goldenergy_s_reason(hass, raw_payload):
+    coordinator = submit_coordinator(hass, raw_payload)
+    coordinator.client.async_submit_reading.side_effect = GoldenergyReadingRejected(
+        "2", "Erro - Leitura inferior à última registada!"
+    )
+
+    with pytest.raises(HomeAssistantError) as err:
+        await coordinator.async_submit_reading("gas", [325], READING_DAY)
+
+    assert err.value.translation_key == "reading_rejected"
+    assert err.value.translation_placeholders == {
+        "message": "Erro - Leitura inferior à última registada!"
+    }
+
+
+async def test_a_transport_failure_while_submitting_is_reported(hass, raw_payload):
+    coordinator = submit_coordinator(hass, raw_payload)
+    coordinator.client.async_submit_reading.side_effect = GoldenergyConnectionError(
+        "down"
+    )
+
+    with pytest.raises(HomeAssistantError) as err:
+        await coordinator.async_submit_reading("gas", [325], READING_DAY)
+
+    assert err.value.translation_key == "submit_failed"

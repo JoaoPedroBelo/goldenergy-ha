@@ -6,6 +6,7 @@ failure modes: a rejected login, an outage, a stale token.
 """
 
 import base64
+from datetime import date
 import json
 import re
 import time
@@ -15,10 +16,12 @@ from aioresponses import aioresponses
 import pytest
 
 from custom_components.goldenergy.api import (
+    GoldenergyAboveAverage,
     GoldenergyAuthError,
     GoldenergyClient,
     GoldenergyConnectionError,
     GoldenergyError,
+    GoldenergyReadingRejected,
     _token_expiry,
     service_energy,
 )
@@ -472,3 +475,132 @@ def test_token_expiry_reads_the_exp_claim():
     assert _token_expiry(make_token()) is None
     assert _token_expiry("not-a-jwt") is None
     assert _token_expiry("a.!!!.c") is None
+
+
+SUBMIT_URL = endpoint("/api/readings/communication")
+
+
+async def submit(client: GoldenergyClient, **overrides):
+    """Submit a gas reading with sensible defaults."""
+    kwargs = {
+        "billing_account": TEST_ACCOUNT,
+        "service_no": "S0000000001",
+        "energy": "gas",
+        "meter_no": "CNTGAS0000000",
+        "reading_date": date(2026, 3, 9),
+        "records": [{"type": 0, "value": 165}],
+        **overrides,
+    }
+    await client.async_submit_reading(**kwargs)
+
+
+async def test_submit_reading_sends_the_production_form_body():
+    """The production front end sends the pre-"QM fase 2" format."""
+    client = GoldenergyClient("C0000000", "secret")
+    with aioresponses() as mocked:
+        mock_login(mocked)
+        mocked.post(SUBMIT_URL, payload=envelope(None))
+        await submit(client)
+
+        call = calls_to(mocked, "readings/communication")[0]
+
+    assert call.kwargs["json"] == {
+        "billingAccountNo": TEST_ACCOUNT,
+        "ServiceNo": "S0000000001",
+        "bcServiceType": 0,
+        "reading": {
+            "energyType": 0,
+            "meterNo": "CNTGAS0000000",
+            "date": "2026-03-09",
+            "records": [{"type": 0, "value": 165}],
+        },
+    }
+    assert call.kwargs["headers"]["Authorization"].startswith("Bearer ")
+    await client.close()
+
+
+async def test_submit_reading_uses_electricity_s_enumeration():
+    client = GoldenergyClient("C0000000", "secret")
+    with aioresponses() as mocked:
+        mock_login(mocked)
+        mocked.post(SUBMIT_URL, payload=envelope(None))
+        await submit(
+            client,
+            energy="electricity",
+            records=[{"type": 0, "value": 1100}, {"type": 1, "value": 560}],
+        )
+
+        body = calls_to(mocked, "readings/communication")[0].kwargs["json"]
+
+    assert body["bcServiceType"] == 1
+    assert body["reading"]["energyType"] == 1
+    assert len(body["reading"]["records"]) == 2
+    await client.close()
+
+
+async def test_confirming_above_average_consumption_sets_the_override():
+    client = GoldenergyClient("C0000000", "secret")
+    with aioresponses() as mocked:
+        mock_login(mocked)
+        mocked.post(SUBMIT_URL, payload=envelope(None))
+        await submit(client, confirm_above_average=True)
+
+        body = calls_to(mocked, "readings/communication")[0].kwargs["json"]
+
+    assert body["ignoreAboveAverageConsumptionValidation"] is True
+    await client.close()
+
+
+async def test_a_reading_below_the_last_one_is_rejected_with_goldenergy_s_reason():
+    """The exact answer Goldenergy gave live, non-breaking space included."""
+    client = GoldenergyClient("C0000000", "secret")
+    with aioresponses() as mocked:
+        mock_login(mocked)
+        mocked.post(
+            SUBMIT_URL,
+            payload={
+                "generatedAt": "2026-03-09T20:25:33+00:00",
+                "hasError": True,
+                "message": "Erro - Leitura inferior à\u00a0 última registada!",
+                "errorCode": "2",
+            },
+        )
+
+        with pytest.raises(GoldenergyReadingRejected) as err:
+            await submit(client)
+
+    assert err.value.code == "2"
+    assert err.value.message == "Erro - Leitura inferior à última registada!"
+    assert not isinstance(err.value, GoldenergyAboveAverage)
+    await client.close()
+
+
+async def test_above_average_consumption_asks_for_confirmation():
+    client = GoldenergyClient("C0000000", "secret")
+    with aioresponses() as mocked:
+        mock_login(mocked)
+        mocked.post(
+            SUBMIT_URL,
+            payload=envelope(None, has_error=True, error_code="1"),
+        )
+
+        with pytest.raises(GoldenergyAboveAverage):
+            await submit(client)
+    await client.close()
+
+
+async def test_a_rejected_token_on_submit_logs_in_again_once():
+    client = GoldenergyClient("C0000000", "secret")
+    with aioresponses() as mocked:
+        mock_login(mocked)
+        mocked.post(SUBMIT_URL, status=401)
+        mock_login(mocked)
+        mocked.post(SUBMIT_URL, payload=envelope(None))
+
+        await submit(client)
+        submits = calls_to(mocked, "readings/communication")
+
+    # The body is resent unchanged on the retry.
+    assert len(submits) == 2
+    assert submits[0].kwargs["json"] == submits[1].kwargs["json"]
+    await client.close()

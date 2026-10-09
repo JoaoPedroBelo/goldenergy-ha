@@ -156,5 +156,86 @@
       "no_energy_selected": "Enable at least one energy",
       "energy_not_on_account": "This billing account does not supply one of the energies you enabled"
     }
+  },
+  "services": {
+    "submit_reading": {
+      "name": "Submit meter reading",
+      "description": "Communicates a meter reading to Goldenergy, exactly as the customer area's form does. Checked against the last registered reading before anything is sent.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Billing account",
+          "description": "The Goldenergy entry to submit for. Optional when only one is set up."
+        },
+        "energy": {
+          "name": "Energy",
+          "description": "Which supply the reading is for."
+        },
+        "value": {
+          "name": "Value",
+          "description": "The meter index, as a whole number (m³ for gas). Use this for a single-register meter."
+        },
+        "values": {
+          "name": "Values",
+          "description": "One whole number per meter register, in the meter's register order. Use this instead of Value for a multi-rate electricity meter."
+        },
+        "day": {
+          "name": "Day",
+          "description": "The day the meter was read. Goldenergy only accepts today or yesterday."
+        },
+        "confirm_above_average": {
+          "name": "Confirm above-average consumption",
+          "description": "Goldenergy asks for confirmation when a reading implies unusually high consumption. Enable after checking the value to send it anyway."
+        }
+      }
+    }
+  },
+  "selector": {
+    "energy": {
+      "options": {
+        "gas": "Gas",
+        "electricity": "Electricity"
+      }
+    },
+    "day": {
+      "options": {
+        "today": "Today",
+        "yesterday": "Yesterday"
+      }
+    }
+  },
+  "exceptions": {
+    "energy_not_tracked": {
+      "message": "{energy} is not tracked by this Goldenergy entry"
+    },
+    "meter_unknown": {
+      "message": "The meter of this supply is not known yet; wait for the next update"
+    },
+    "wrong_register_count": {
+      "message": "This meter has {expected} register(s), but {got} value(s) were given"
+    },
+    "below_last_reading": {
+      "message": "The reading {value} is lower than the last one registered ({last})"
+    },
+    "above_average": {
+      "message": "Goldenergy flags this reading as above your average consumption. Check the value, then send it again with \"Confirm above-average consumption\" enabled"
+    },
+    "reading_rejected": {
+      "message": "Goldenergy rejected the reading: {message}"
+    },
+    "submit_failed": {
+      "message": "Could not submit the reading: {error}"
+    },
+    "value_required": {
+      "message": "Give the reading as Value (single-register meter) or Values (one per register)"
+    },
+    "entry_not_loaded": {
+      "message": "No loaded Goldenergy entry with id {entry_id}"
+    },
+    "entry_required": {
+      "message": "Several Goldenergy entries are set up; choose the billing account"
+    },
+    "no_entry_loaded": {
+      "message": "No Goldenergy entry is loaded"
+    }
   }
 }

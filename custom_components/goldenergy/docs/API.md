@@ -128,9 +128,10 @@ The integration uses only `groupedservices-list` (config flow), `billingAccounts
 for electricity with `EnergyType=1` — the value the front end sends to its
 electricity daily view; the reading list itself was only observed for gas.
 
-Write endpoints exist (`/api/readings/communication` to submit a reading,
-`/api/readings/cancellation`, profile/contact/address updates, e-invoice and
-direct-debit (un)subscription) and are **out of scope** — never call them.
+Other write endpoints exist (`/api/readings/cancellation`, profile/contact/address
+updates, e-invoice and direct-debit (un)subscription) and are **out of scope** —
+never call them. The one write this integration makes is submitting a reading,
+below.
 
 ### Enumerations
 
@@ -138,11 +139,57 @@ direct-debit (un)subscription) and are **out of scope** — never call them.
 |-------|-------|---------|
 | `energyType` / `EnergyType` | `0` | gas |
 | | `1` | electricity |
-| service `type` | `1` | gas (`description: "Gás"`) |
+| service `type` | `1` | gas (`description: "Gás"`); the front end treats `0`/`1` as gas and `2`/`3` as electricity |
 | `status` | `1` | active |
 
 Electricity service/reading values were **not observed** — the captured account
 has gas only. Verify against an electricity account before relying on them.
+
+## Submitting a reading — `POST /api/readings/communication`
+
+The integration's only write (`goldenergy.submit_reading`). The body mirrors the
+customer area's form. The front end carries two formats behind a `QM_FASE2` flag
+set in `api-config.js`; **production has it off**, so the format in use is:
+
+```json
+{"billingAccountNo": "CG0000000",
+ "ServiceNo": "S0000000001",
+ "bcServiceType": 0,
+ "reading": {"energyType": 0,
+             "meterNo": "CNTGAS0000000",
+             "date": "2026-03-09",
+             "records": [{"type": 0, "value": 165}]}}
+```
+
+- `bcServiceType` and `energyType` are the energy enumeration (0 gas, 1
+  electricity). `meterNo` is the meter's `meterNo` from `services/single` — not its
+  serial number, which is what the (inactive) `QM_FASE2` format sends.
+- `date` is `yyyy-mm-dd`; the form only offers **today** or **yesterday**.
+- `records` holds one `{type, value}` per meter register, typed by the meter's
+  `recordTypes` (`[0]` for gas). Values are **whole numbers**: the form
+  `parseInt`s them.
+- The form refuses a value below the last reading client-side, and so does the
+  integration, before sending.
+
+Refusals answer **200 with `hasError: true`** (verified live with a value below the
+last reading):
+
+```json
+{"hasError": true, "errorCode": "2",
+ "message": "Erro - Leitura inferior à\u00a0 última registada!"}
+```
+
+| `errorCode` | Meaning | What the form does |
+|-------------|---------|--------------------|
+| `"1"` | Implies above-average consumption | Asks to confirm, then resends the same body plus `"ignoreAboveAverageConsumptionValidation": true` |
+| `"2"` | Lower than the last registered reading | Shows the message |
+
+Messages are Portuguese and padded with non-breaking spaces.
+
+A communicated reading can be withdrawn with `POST /api/readings/cancellation`
+`{"BillingAccountNo", "ServiceNo", "energyType", "communicatedReadingEntryNo"}`
+(the `entryNo` of a `readings/pagelist` item whose `canCancel` is true). The
+integration does not call it.
 
 ## Response shapes
 

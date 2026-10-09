@@ -52,6 +52,11 @@ EP_ACCOUNT: Final = "/api/billingAccounts/single"
 EP_SERVICE: Final = "/api/services/single"
 EP_READINGS: Final = "/api/readings/pagelist"
 EP_INVOICES: Final = "/api/account-documents/calc-docs"
+# Communicating a meter reading — the integration's only write.
+EP_SUBMIT_READING: Final = "/api/readings/communication"
+# ``errorCode`` values a reading submission answers with (verified live).
+READING_ERROR_ABOVE_AVERAGE: Final = "1"
+READING_ERROR_BELOW_LAST: Final = "2"
 
 # Page size the front end itself uses for the paginated lists.
 PAGE_SIZE: Final = 10
@@ -137,6 +142,9 @@ DATA_TIER: Final = "tier"
 DATA_METER_SERIAL: Final = "meter_serial"
 DATA_METER_NUMBER: Final = "meter_number"
 DATA_METER_DIGITS: Final = "meter_digits"
+# The meter's register types (``[0]`` for gas), in the order a submitted
+# reading must list its values.
+DATA_METER_RECORD_TYPES: Final = "meter_record_types"
 # Codes of the service's active campaigns, comma-joined (e.g. "DIGITAL_01/26").
 DATA_CAMPAIGNS: Final = "campaigns"
 DATA_SMART_METER: Final = "smart_meter"

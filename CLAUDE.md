@@ -27,7 +27,8 @@ the API client, coordinator, or entities:
 | `statistics.py` | Imports up to four external statistics per account: gas volume (m³), gas energy (kWh, derived), electricity (kWh), cost. Readings are spread over the days they cover and the window is rewritten each poll. |
 | `entity.py` | Shared entity base: unique ids, the per-account device, `_source(energy)`. |
 | `const.py` | `Final`-typed constants: config keys, endpoints, enumerations, entity keys, `coordinator.data` keys, `POLL_HOURS`. |
-| `config_flow.py` / `__init__.py` | Config UI (login → account → energy toggles; options flow) / entry point (schedule, reload on options, stale-entity cleanup). |
+| `config_flow.py` / `__init__.py` | Config UI (login → account → energy toggles; options flow) / entry point (service registration, schedule, reload on options, stale-entity cleanup). |
+| `services.py` | The `goldenergy.submit_reading` action — the integration's only write. |
 | `sensor.py` / `binary_sensor.py` | Entities, declared as description tables; `energy=None` means account level. |
 
 ## Critical rules
@@ -53,6 +54,10 @@ the API client, coordinator, or entities:
 8. **Log via `_LOGGER`** — never `print()` (ruff `T20`).
 9. Log in, retry once on 401, then fail.
 10. A statistics failure must never fail the poll.
+11. **Submitting a reading is the only write.** Never call any other write
+    endpoint, and never send a real reading while developing — test refusals with
+    a value below the last reading (Goldenergy answers `errorCode` 2 and stores
+    nothing).
 
 ## Data notes
 

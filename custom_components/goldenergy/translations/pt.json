@@ -156,5 +156,86 @@
       "no_energy_selected": "Ative pelo menos uma energia",
       "energy_not_on_account": "Esta conta não fornece uma das energias que ativou"
     }
+  },
+  "services": {
+    "submit_reading": {
+      "name": "Comunicar leitura",
+      "description": "Comunica uma leitura do contador à Goldenergy, tal como o formulário da área de cliente. É verificada contra a última leitura registada antes de ser enviada.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Conta de faturação",
+          "description": "A entrada Goldenergy para a qual comunicar. Opcional quando só existe uma."
+        },
+        "energy": {
+          "name": "Energia",
+          "description": "O fornecimento a que a leitura se refere."
+        },
+        "value": {
+          "name": "Valor",
+          "description": "A leitura do contador, em número inteiro (m³ no gás). Para contadores com um só registo."
+        },
+        "values": {
+          "name": "Valores",
+          "description": "Um número inteiro por registo do contador, pela ordem dos registos. Use em vez de Valor num contador de eletricidade bi/tri-horário."
+        },
+        "day": {
+          "name": "Dia",
+          "description": "O dia em que o contador foi lido. A Goldenergy só aceita hoje ou ontem."
+        },
+        "confirm_above_average": {
+          "name": "Confirmar consumo acima da média",
+          "description": "A Goldenergy pede confirmação quando a leitura implica um consumo invulgarmente alto. Ative depois de verificar o valor para a enviar na mesma."
+        }
+      }
+    }
+  },
+  "selector": {
+    "energy": {
+      "options": {
+        "gas": "Gás",
+        "electricity": "Eletricidade"
+      }
+    },
+    "day": {
+      "options": {
+        "today": "Hoje",
+        "yesterday": "Ontem"
+      }
+    }
+  },
+  "exceptions": {
+    "energy_not_tracked": {
+      "message": "{energy} não é seguido por esta entrada Goldenergy"
+    },
+    "meter_unknown": {
+      "message": "O contador deste fornecimento ainda não é conhecido; aguarde pela próxima atualização"
+    },
+    "wrong_register_count": {
+      "message": "Este contador tem {expected} registo(s), mas foram dados {got} valor(es)"
+    },
+    "below_last_reading": {
+      "message": "A leitura {value} é inferior à última registada ({last})"
+    },
+    "above_average": {
+      "message": "A Goldenergy considera esta leitura acima do seu consumo médio. Verifique o valor e volte a enviar com \"Confirmar consumo acima da média\" ativo"
+    },
+    "reading_rejected": {
+      "message": "A Goldenergy recusou a leitura: {message}"
+    },
+    "submit_failed": {
+      "message": "Não foi possível comunicar a leitura: {error}"
+    },
+    "value_required": {
+      "message": "Indique a leitura em Valor (contador de um registo) ou Valores (um por registo)"
+    },
+    "entry_not_loaded": {
+      "message": "Não há nenhuma entrada Goldenergy carregada com o id {entry_id}"
+    },
+    "entry_required": {
+      "message": "Existem várias entradas Goldenergy; escolha a conta de faturação"
+    },
+    "no_entry_loaded": {
+      "message": "Nenhuma entrada Goldenergy está carregada"
+    }
   }
 }
