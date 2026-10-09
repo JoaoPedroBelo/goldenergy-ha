@@ -12,6 +12,7 @@ import pytest
 
 from custom_components.goldenergy.statistics import (
     _anchor_sum,
+    _metadata,
     _ts_to_local_iso,
     build_cost_points,
     build_statistic_points,
@@ -209,6 +210,53 @@ def test_a_credit_note_never_makes_the_cost_sum_fall():
     sums = [p["sum"] for p in build_cost_points(with_credit, None, 0.0)]
 
     assert sums == [30.11, 30.11, 42.45]
+
+
+def test_metadata_uses_has_mean_on_a_core_without_mean_type():
+    """Older cores reject unknown keys: ``StatisticsMeta(**metadata)``."""
+    from homeassistant.components.recorder.models import StatisticMetaData
+
+    metadata = _metadata("goldenergy:x", "X", "m³")
+
+    assert set(metadata) <= set(StatisticMetaData.__annotations__)
+    if "mean_type" not in StatisticMetaData.__annotations__:
+        assert metadata["has_mean"] is False
+
+
+def test_metadata_uses_mean_type_and_unit_class_on_a_newer_core(monkeypatch):
+    """Newer cores stop importing metadata without them (2026.11)."""
+    from enum import IntEnum
+
+    from homeassistant.components.recorder import models
+
+    class FakeMeanType(IntEnum):
+        NONE = 0
+
+    class NewerMetaData(dict):
+        __annotations__ = {
+            "mean_type": int,
+            "has_sum": bool,
+            "name": str,
+            "source": str,
+            "statistic_id": str,
+            "unit_class": str,
+            "unit_of_measurement": str,
+        }
+
+    monkeypatch.setattr(models, "StatisticMetaData", NewerMetaData)
+    monkeypatch.setattr(models, "StatisticMeanType", FakeMeanType, raising=False)
+
+    volume = _metadata("goldenergy:v", "V", "m³")
+    energy = _metadata("goldenergy:e", "E", "kWh")
+    cost = _metadata("goldenergy:c", "C", "EUR")
+
+    assert "has_mean" not in volume
+    assert volume["mean_type"] is FakeMeanType.NONE
+    assert volume["unit_class"] == "volume"
+    assert energy["unit_class"] == "energy"
+    # A currency has no unit converter.
+    assert cost["unit_class"] is None
+    assert set(volume) == set(NewerMetaData.__annotations__)
 
 
 def test_the_four_statistic_ids_are_distinct_and_namespaced():
