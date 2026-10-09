@@ -1,0 +1,443 @@
+"""Import Goldenergy meter readings and invoices as long-term external statistics.
+
+The API exposes a **cumulative meter index** per reading — m³ for gas, kWh for
+electricity — not per-period totals, which is exactly what the Home Assistant
+Energy dashboard wants. What it does *not* expose for a conventional meter is a
+daily series: readings are roughly monthly and land days after the date they
+carry.
+
+A live ``total_increasing`` sensor would therefore attribute a whole month's
+consumption to the poll hour. Instead the readings are imported as external
+statistics timestamped at **local midnight**, with each reading's delta **spread
+evenly over the days it covers** — one point per calendar day between two
+readings. Dating the whole delta at the reading day put a month of consumption on
+a single day, and since the dashboard diffs ``sum`` at month boundaries, a reading
+taken on the 11th credited three weeks of the previous month to the current one.
+An even split is an approximation, but a far smaller one.
+
+The whole window is **rewritten** on every poll rather than appended to: the
+running ``sum`` is anchored on the statistic already stored for the oldest reading
+in the window and recomputed from there, so a backdated reading arriving late
+repairs the days it covers instead of dumping them on the day it showed up.
+
+Four series are published per billing account:
+
+=====================================  =========  ==============================
+Series                                 Unit       How it is maintained
+=====================================  =========  ==============================
+``gas_volume_<account>``               m³         window rewritten, source of truth
+``gas_energy_<account>``               kWh        derived from volume x factor
+``electricity_energy_<account>``       kWh        window rewritten, source of truth
+``cost_<account>``                     currency   append-only, from invoices
+=====================================  =========  ==============================
+
+The gas energy series is *derived* rather than accumulated alongside the volume
+one, so a corrected conversion factor repairs the whole history rather than only
+its tail. The cost series is per account because one invoice bills every energy on
+it; it carries what was actually invoiced (fixed terms and VAT included), which
+Home Assistant needs as a statistic since it refuses a price entity on an external
+statistic.
+
+This algorithm is the one proven in the CUR Gás Natural integration.
+"""
+
+from __future__ import annotations
+
+from datetime import date, timedelta
+from itertools import pairwise
+import logging
+from typing import Any, Final
+
+from homeassistant.const import UnitOfEnergy, UnitOfVolume
+from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util, slugify
+
+from .const import DOMAIN, ENERGY_ELECTRICITY, ENERGY_GAS
+
+_LOGGER = logging.getLogger(__name__)
+
+GAS_VOLUME_NAME: Final = "Goldenergy Gas Volume"
+GAS_ENERGY_NAME: Final = "Goldenergy Gas Energy"
+ELECTRICITY_NAME: Final = "Goldenergy Electricity"
+COST_NAME: Final = "Goldenergy Cost"
+
+
+def gas_volume_statistic_id(account: str) -> str:
+    """Return the external statistic id of the gas volume (m³) series.
+
+    External ids use ``<domain>:<object_id>`` (a colon, not a dot), and the object
+    id must be a slug — hence ``slugify`` over the billing account number.
+    """
+    return f"{DOMAIN}:gas_volume_{slugify(account)}"
+
+
+def gas_energy_statistic_id(account: str) -> str:
+    """Return the external statistic id of the gas energy (kWh) series.
+
+    Both gas units are published: m³ is what the meter counts, kWh is what the
+    supplier bills and what a €/kWh tariff must be multiplied by.
+    """
+    return f"{DOMAIN}:gas_energy_{slugify(account)}"
+
+
+def electricity_statistic_id(account: str) -> str:
+    """Return the external statistic id of the electricity (kWh) series."""
+    return f"{DOMAIN}:electricity_energy_{slugify(account)}"
+
+
+def cost_statistic_id(account: str) -> str:
+    """Return the external statistic id carrying billed cost in the local currency."""
+    return f"{DOMAIN}:cost_{slugify(account)}"
+
+
+def build_statistic_points(
+    readings: list[dict[str, Any]],
+    anchor_sum: float,
+) -> list[dict[str, Any]]:
+    """Return one ``{"iso", "state", "sum"}`` point per day the readings cover.
+
+    ``sum`` is cumulative consumption and ``state`` the meter index, both
+    interpolated linearly across the days between two readings, so the
+    dashboard's period diff (``sum[end] - sum[start]``) lands on the right
+    calendar month.
+
+    ``anchor_sum`` is the total already stored for the **oldest** reading in the
+    window; that reading itself therefore contributes no consumption. On a fresh
+    install it is ``0.0`` — what passed through the meter before the first reading
+    is not knowable from this API.
+    """
+    ordered = _one_reading_per_day(readings)
+    if not ordered:
+        return []
+
+    first = ordered[0]
+    points: list[dict[str, Any]] = [
+        {"iso": first["iso"], "state": first["index"], "sum": round(anchor_sum, 3)}
+    ]
+    running = anchor_sum
+
+    for previous, entry in pairwise(ordered):
+        start = date.fromisoformat(previous["iso"])
+        span = (date.fromisoformat(entry["iso"]) - start).days
+        step_index = (entry["index"] - previous["index"]) / span
+        # A meter that goes backwards means a replaced or rolled-over meter; write
+        # the drop off rather than break the statistic's monotonic ``sum``. The
+        # ``state`` still follows the real index, so the series ends where the
+        # meter is.
+        step_sum = max(entry["index"] - previous["index"], 0.0) / span
+
+        for day in range(1, span + 1):
+            points.append(
+                {
+                    "iso": (start + timedelta(days=day)).isoformat(),
+                    "state": round(previous["index"] + step_index * day, 3),
+                    "sum": round(running + step_sum * day, 3),
+                }
+            )
+        running += step_sum * span
+
+    return points
+
+
+def _one_reading_per_day(readings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Sort readings oldest first, keeping the highest index per day.
+
+    The coordinator already collapses duplicate days, but the interpolation above
+    divides by the gap between consecutive readings, so a repeated day would be a
+    division by zero. Defend here rather than trust the caller.
+    """
+    highest: dict[str, dict[str, Any]] = {}
+    for entry in readings:
+        current = highest.get(entry["iso"])
+        if current is None or entry["index"] > current["index"]:
+            highest[entry["iso"]] = entry
+    return [highest[iso] for iso in sorted(highest)]
+
+
+def build_cost_points(
+    invoices: list[dict[str, Any]],
+    last_iso: str | None,
+    last_sum: float,
+) -> list[dict[str, Any]]:
+    """Return ``[{"iso", "state", "sum"}]`` for invoices newer than ``last_iso``.
+
+    ``sum`` accumulates invoice totals so the dashboard's period diff yields what
+    was billed for that period. A non-positive total (a credit note) is **clamped
+    to zero**: a falling running sum reads as a meter reset to Home Assistant and
+    renders as a large negative bar, which misleads far more than under-reporting
+    one credit.
+    """
+    running = last_sum
+    points: list[dict[str, Any]] = []
+
+    for entry in sorted(invoices, key=lambda e: e["iso"]):
+        if last_iso is not None and entry["iso"] <= last_iso:
+            continue
+        total = max(float(entry["total"]), 0.0)
+        running = round(running + total, 2)
+        points.append({"iso": entry["iso"], "state": total, "sum": running})
+
+    return points
+
+
+async def async_import_statistics(
+    hass: HomeAssistant,
+    account: str,
+    readings: dict[str, list[dict[str, Any]]],
+    conversion_factor: float,
+    invoices: list[dict[str, Any]],
+) -> None:
+    """Import one billing account's readings and invoices as statistics.
+
+    ``readings`` maps an energy (``gas``/``electricity``) to its normalised
+    reading list; an energy that is absent or has no readings is skipped.
+    """
+    gas = readings.get(ENERGY_GAS) or []
+    if gas:
+        stored, fresh = await _async_rewrite_index_series(
+            hass,
+            gas_volume_statistic_id(account),
+            f"{GAS_VOLUME_NAME} ({account})",
+            UnitOfVolume.CUBIC_METERS,
+            gas,
+        )
+        # Deriving rather than accumulating in parallel is what makes a corrected
+        # conversion factor fix the *whole* history.
+        await _async_sync_derived_series(
+            hass,
+            gas_energy_statistic_id(account),
+            f"{GAS_ENERGY_NAME} ({account})",
+            conversion_factor,
+            stored,
+            fresh,
+        )
+
+    electricity = readings.get(ENERGY_ELECTRICITY) or []
+    if electricity:
+        await _async_rewrite_index_series(
+            hass,
+            electricity_statistic_id(account),
+            f"{ELECTRICITY_NAME} ({account})",
+            UnitOfEnergy.KILO_WATT_HOUR,
+            electricity,
+        )
+
+    if invoices:
+        await _async_import_cost_series(hass, account, invoices)
+
+
+async def _async_rewrite_index_series(
+    hass: HomeAssistant,
+    statistic_id: str,
+    name: str,
+    unit: str,
+    readings: list[dict[str, Any]],
+) -> tuple[dict[float, tuple[float, float]], list[Any]]:
+    """Rewrite one index-based series over the polled window.
+
+    Returns the series as stored before this poll and the points just queued, so
+    a derived series can be re-synced from both (see ``_async_sync_derived_series``).
+    """
+    # The recorder is a declared dependency but must be imported lazily: the
+    # module pulls in native deps that are intentionally absent from the unit
+    # test environment.
+    from homeassistant.components.recorder.models import StatisticData
+    from homeassistant.components.recorder.statistics import (
+        async_add_external_statistics,
+    )
+
+    stored = await _async_read_series(hass, statistic_id)
+    oldest_iso = min(entry["iso"] for entry in readings)
+    points = build_statistic_points(readings, _anchor_sum(stored, oldest_iso))
+    fresh: list[StatisticData] = [
+        {
+            "start": dt_util.start_of_local_day(date.fromisoformat(p["iso"])),
+            "state": p["state"],
+            "sum": p["sum"],
+        }
+        for p in points
+    ]
+    if fresh:
+        async_add_external_statistics(hass, _metadata(statistic_id, name, unit), fresh)
+    _LOGGER.debug("Imported %d point(s) into %s", len(fresh), statistic_id)
+    return stored, fresh
+
+
+async def _async_import_cost_series(
+    hass: HomeAssistant,
+    account: str,
+    invoices: list[dict[str, Any]],
+) -> None:
+    """Append newly issued invoices to this account's cost statistic.
+
+    Append-only: an invoice, once issued, is history. The unit must be the
+    instance's own currency or Home Assistant rejects it as a cost source.
+    """
+    from homeassistant.components.recorder import get_instance
+    from homeassistant.components.recorder.models import StatisticData
+    from homeassistant.components.recorder.statistics import (
+        async_add_external_statistics,
+        get_last_statistics,
+    )
+
+    currency = hass.config.currency
+    if not currency:
+        _LOGGER.debug("No currency configured; skipping the cost statistic")
+        return
+
+    statistic_id = cost_statistic_id(account)
+    last_stats = await get_instance(hass).async_add_executor_job(
+        get_last_statistics, hass, 1, statistic_id, True, {"sum"}
+    )
+    stored = (last_stats.get(statistic_id) or [None])[0]
+    if stored:
+        last_sum = float(stored.get("sum") or 0.0)
+        last_iso: str | None = _ts_to_local_iso(float(stored["start"]))
+    else:
+        last_sum = 0.0
+        last_iso = None
+
+    points = build_cost_points(invoices, last_iso, last_sum)
+    if not points:
+        return
+
+    statistics: list[StatisticData] = [
+        {
+            "start": dt_util.start_of_local_day(date.fromisoformat(p["iso"])),
+            "state": p["state"],
+            "sum": p["sum"],
+        }
+        for p in points
+    ]
+    async_add_external_statistics(
+        hass,
+        _metadata(statistic_id, f"{COST_NAME} ({account})", currency),
+        statistics,
+    )
+    _LOGGER.debug(
+        "Imported %d invoice cost point(s) up to %s for %s",
+        len(points),
+        points[-1]["iso"],
+        account,
+    )
+
+
+def _metadata(statistic_id: str, name: str, unit: str) -> Any:
+    """Build the metadata every series here shares."""
+    return {
+        "has_mean": False,
+        "has_sum": True,
+        "name": name,
+        "source": DOMAIN,
+        "statistic_id": statistic_id,
+        "unit_of_measurement": unit,
+    }
+
+
+async def _async_read_series(
+    hass: HomeAssistant, statistic_id: str
+) -> dict[float, tuple[float, float]]:
+    """Return the whole stored series as ``{epoch_seconds: (state, sum)}``."""
+    from homeassistant.components.recorder import get_instance
+    from homeassistant.components.recorder.statistics import statistics_during_period
+
+    rows = await get_instance(hass).async_add_executor_job(
+        statistics_during_period,
+        hass,
+        dt_util.utc_from_timestamp(0),
+        None,
+        {statistic_id},
+        "day",
+        None,
+        {"state", "sum"},
+    )
+
+    series: dict[float, tuple[float, float]] = {}
+    for row in rows.get(statistic_id) or []:
+        state, total = row.get("state"), row.get("sum")
+        if state is not None and total is not None:
+            series[_as_seconds(row["start"])] = (float(state), float(total))
+    return series
+
+
+def _anchor_sum(stored: dict[float, tuple[float, float]], oldest_iso: str) -> float:
+    """Return the total already stored at ``oldest_iso``, else the last one before it.
+
+    The oldest reading the API still returns contributes no consumption of its
+    own — either it is the very first reading ever, or its delta was counted when
+    it was imported, before it aged out of the window. The rewrite therefore has
+    to resume from the total stored *at* that day and never from zero, or a slid
+    window would reset the series and render as a spike.
+    """
+    earlier = [ts for ts in stored if _ts_to_local_iso(ts) <= oldest_iso]
+    if not earlier:
+        return 0.0
+    return stored[max(earlier)][1]
+
+
+async def _async_sync_derived_series(
+    hass: HomeAssistant,
+    statistic_id: str,
+    name: str,
+    factor: float,
+    stored_source: dict[float, tuple[float, float]],
+    fresh_source: list[Any],
+) -> None:
+    """Mirror the gas volume statistic into the energy one at the current factor.
+
+    Rewrites points in place (``async_add_external_statistics`` overwrites a point
+    with the same ``start``), which keeps ``energy == volume x factor`` true for
+    every point rather than only for newly appended ones.
+
+    ``fresh_source`` holds the points queued moments ago in this same poll and is
+    merged over ``stored_source`` explicitly: the write is *queued* on the
+    recorder thread, so the series read at the start of the poll cannot contain
+    them — which would leave the energy series a poll behind, and empty on a
+    fresh install.
+    """
+    from homeassistant.components.recorder.models import StatisticData
+    from homeassistant.components.recorder.statistics import (
+        async_add_external_statistics,
+    )
+
+    merged = dict(stored_source)
+    for point in fresh_source:
+        merged[point["start"].timestamp()] = (
+            float(point["state"]),
+            float(point["sum"]),
+        )
+    if not merged:
+        return
+
+    statistics: list[StatisticData] = [
+        {
+            "start": dt_util.utc_from_timestamp(when),
+            "state": round(state * factor, 3),
+            "sum": round(total * factor, 3),
+        }
+        for when, (state, total) in sorted(merged.items())
+    ]
+    async_add_external_statistics(
+        hass,
+        _metadata(statistic_id, name, UnitOfEnergy.KILO_WATT_HOUR),
+        statistics,
+    )
+
+
+def _as_seconds(start: Any) -> float:
+    """Normalise a recorder ``start`` to epoch seconds."""
+    value = float(start)
+    return value / 1000.0 if value > 1e11 else value
+
+
+def _ts_to_local_iso(start_ts: float) -> str:
+    """Convert a recorder ``start`` timestamp to a local ``YYYY-MM-DD`` date.
+
+    ``get_last_statistics`` returns ``start`` as epoch seconds, but some HA
+    versions have used milliseconds; normalise defensively (a 2020+ date is
+    ~1.6e9 s vs ~1.6e12 ms, so the split is unambiguous).
+    """
+    if start_ts > 1e11:
+        start_ts /= 1000.0
+    local = dt_util.utc_from_timestamp(start_ts).astimezone(dt_util.DEFAULT_TIME_ZONE)
+    return local.date().isoformat()

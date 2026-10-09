@@ -1,0 +1,17 @@
+# Development dependencies for the Goldenergy integration
+# Install: pip install -r requirements-dev.txt
+
+# Include test dependencies (pinned to the current Home Assistant; see that file).
+# For the oldest supported Home Assistant, install requirements-test-min.txt into a
+# separate Python 3.11 venv instead - the two cannot coexist.
+-r requirements-test.txt
+
+# Linting and formatting
+ruff>=0.8.0
+mypy>=1.7.0
+pre-commit>=3.5.0
+
+# Brand asset generation (make brand). cairosvg needs the cairo library:
+#   macOS: brew install cairo   |   Debian/Ubuntu: apt install libcairo2
+Pillow>=10.0.0
+cairosvg>=2.7.0

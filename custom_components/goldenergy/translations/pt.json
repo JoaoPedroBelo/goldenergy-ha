@@ -1,0 +1,127 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configurar Goldenergy",
+        "description": "Inicie sessão com a sua conta da área de cliente Goldenergy (clientes.goldenergy.pt). Os dados são atualizados duas vezes por dia (02:00 e 14:00).",
+        "data": {
+          "username": "Nº de cliente ou NIF",
+          "password": "Palavra-passe"
+        }
+      },
+      "account": {
+        "title": "Escolher conta",
+        "description": "Tem mais do que uma conta de faturação. Escolha a que esta entrada deve seguir — adicione a integração novamente para as restantes.",
+        "data": {
+          "billing_account": "Conta de faturação"
+        }
+      },
+      "energies": {
+        "title": "Escolher o que seguir",
+        "description": "A conta {account} fornece: {supplies}. Escolha o que esta entrada deve seguir. Pode alterar mais tarde nas opções da integração.",
+        "data": {
+          "enable_gas": "Gás",
+          "enable_electricity": "Eletricidade"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reautenticar Goldenergy",
+        "description": "A palavra-passe guardada para {username} já não funciona. Introduza a palavra-passe atual da área de cliente para continuar.",
+        "data": {
+          "password": "Palavra-passe"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Nº de cliente/NIF ou palavra-passe inválidos",
+      "cannot_connect": "Não foi possível contactar a Goldenergy",
+      "unknown": "Ocorreu um erro inesperado",
+      "no_energy_selected": "Ative pelo menos uma energia",
+      "energy_not_on_account": "Esta conta não fornece uma das energias que ativou"
+    },
+    "abort": {
+      "already_configured": "Esta conta já está configurada",
+      "no_accounts": "Este cliente não tem contas para seguir",
+      "unknown_account": "Essa conta já não está disponível",
+      "no_energy_supplies": "Esta conta não tem fornecimento de gás nem de eletricidade",
+      "invalid_auth": "Nº de cliente/NIF ou palavra-passe inválidos",
+      "cannot_connect": "Não foi possível contactar a Goldenergy",
+      "unknown": "Ocorreu um erro inesperado",
+      "reauth_successful": "A reautenticação foi concluída com sucesso"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "gas_meter_index": {
+        "name": "Leitura do contador de gás"
+      },
+      "gas_meter_index_energy": {
+        "name": "Leitura do contador de gás (energia)"
+      },
+      "gas_last_consumption": {
+        "name": "Consumo de gás desde a leitura anterior"
+      },
+      "gas_last_consumption_energy": {
+        "name": "Consumo de gás desde a leitura anterior (energia)"
+      },
+      "gas_last_reading_date": {
+        "name": "Data da última leitura de gás"
+      },
+      "electricity_meter_index": {
+        "name": "Leitura do contador de eletricidade"
+      },
+      "electricity_last_consumption": {
+        "name": "Consumo de eletricidade desde a leitura anterior"
+      },
+      "electricity_last_reading_date": {
+        "name": "Data da última leitura de eletricidade"
+      },
+      "next_reading_date": {
+        "name": "Data da próxima leitura"
+      },
+      "balance": {
+        "name": "Saldo da conta"
+      },
+      "last_invoice_total": {
+        "name": "Total da última fatura"
+      },
+      "last_invoice_due": {
+        "name": "Data-limite de pagamento"
+      },
+      "amount_due": {
+        "name": "Valor em dívida"
+      },
+      "billed_12m": {
+        "name": "Faturado nos últimos 12 meses"
+      }
+    },
+    "binary_sensor": {
+      "invoice_pending": {
+        "name": "Fatura por pagar"
+      },
+      "available": {
+        "name": "Serviço disponível"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opções Goldenergy",
+        "description": "Escolha que energias seguir. O contador de gás conta m³ mas a Goldenergy fatura kWh, usando o fator de conversão da rede impresso na fatura ao lado da leitura; defina-o aqui para que os sensores e as estatísticas de energia do gás batam com a fatura.",
+        "data": {
+          "enable_gas": "Gás",
+          "enable_electricity": "Eletricidade",
+          "conversion_factor": "Fator de conversão do gás (kWh/m³)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Nº de cliente/NIF ou palavra-passe inválidos",
+      "cannot_connect": "Não foi possível contactar a Goldenergy",
+      "unknown": "Ocorreu um erro inesperado",
+      "no_energy_selected": "Ative pelo menos uma energia",
+      "energy_not_on_account": "Esta conta não fornece uma das energias que ativou"
+    }
+  }
+}

@@ -1,0 +1,127 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Goldenergy Setup",
+        "description": "Sign in with your Goldenergy customer area account (clientes.goldenergy.pt). Data is refreshed twice a day (02:00 and 14:00).",
+        "data": {
+          "username": "Customer number or NIF",
+          "password": "Password"
+        }
+      },
+      "account": {
+        "title": "Choose a billing account",
+        "description": "You have more than one billing account. Pick the one this entry should track — add the integration again for the others.",
+        "data": {
+          "billing_account": "Billing account"
+        }
+      },
+      "energies": {
+        "title": "Choose what to track",
+        "description": "Billing account {account} supplies: {supplies}. Choose which of them this entry should track. You can change this later in the integration's options.",
+        "data": {
+          "enable_gas": "Gas",
+          "enable_electricity": "Electricity"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Goldenergy",
+        "description": "The stored password for {username} no longer works. Enter the current customer area password to continue.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid customer number/NIF or password",
+      "cannot_connect": "Failed to reach Goldenergy",
+      "unknown": "Unexpected error occurred",
+      "no_energy_selected": "Enable at least one energy",
+      "energy_not_on_account": "This billing account does not supply one of the energies you enabled"
+    },
+    "abort": {
+      "already_configured": "This billing account is already configured",
+      "no_accounts": "This customer has no billing accounts to track",
+      "unknown_account": "That billing account is no longer available",
+      "no_energy_supplies": "This billing account has no gas or electricity supply",
+      "invalid_auth": "Invalid customer number/NIF or password",
+      "cannot_connect": "Failed to reach Goldenergy",
+      "unknown": "Unexpected error occurred",
+      "reauth_successful": "Re-authentication was successful"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "gas_meter_index": {
+        "name": "Gas meter index"
+      },
+      "gas_meter_index_energy": {
+        "name": "Gas meter index (energy)"
+      },
+      "gas_last_consumption": {
+        "name": "Gas consumption since previous reading"
+      },
+      "gas_last_consumption_energy": {
+        "name": "Gas consumption since previous reading (energy)"
+      },
+      "gas_last_reading_date": {
+        "name": "Gas last reading date"
+      },
+      "electricity_meter_index": {
+        "name": "Electricity meter index"
+      },
+      "electricity_last_consumption": {
+        "name": "Electricity consumption since previous reading"
+      },
+      "electricity_last_reading_date": {
+        "name": "Electricity last reading date"
+      },
+      "next_reading_date": {
+        "name": "Next reading date"
+      },
+      "balance": {
+        "name": "Account balance"
+      },
+      "last_invoice_total": {
+        "name": "Last invoice total"
+      },
+      "last_invoice_due": {
+        "name": "Last invoice due date"
+      },
+      "amount_due": {
+        "name": "Amount due"
+      },
+      "billed_12m": {
+        "name": "Billed last 12 months"
+      }
+    },
+    "binary_sensor": {
+      "invoice_pending": {
+        "name": "Invoice pending payment"
+      },
+      "available": {
+        "name": "Service available"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Goldenergy options",
+        "description": "Choose which energies to track. The gas meter counts m³ but Goldenergy bills kWh, using the network's conversion factor printed on the invoice next to the reading; set it here so the gas energy sensors and statistics match your invoice.",
+        "data": {
+          "enable_gas": "Gas",
+          "enable_electricity": "Electricity",
+          "conversion_factor": "Gas conversion factor (kWh/m³)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid customer number/NIF or password",
+      "cannot_connect": "Failed to reach Goldenergy",
+      "unknown": "Unexpected error occurred",
+      "no_energy_selected": "Enable at least one energy",
+      "energy_not_on_account": "This billing account does not supply one of the energies you enabled"
+    }
+  }
+}
