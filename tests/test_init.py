@@ -141,8 +141,8 @@ async def test_entry_loads(hass, mock_client):
 async def test_both_energies_create_every_entity(hass, mock_client):
     entry = await setup_entry(hass)
 
-    # 5 gas + 3 electricity + 6 account sensors; 2 binary sensors.
-    assert count_by_platform(hass, entry) == {"sensor": 14, "binary_sensor": 2}
+    # 9 gas + 5 electricity + 9 account sensors; 4 binary sensors.
+    assert count_by_platform(hass, entry) == {"sensor": 23, "binary_sensor": 4}
 
 
 async def test_a_disabled_energy_creates_no_entities(hass, mock_client):
@@ -150,7 +150,7 @@ async def test_a_disabled_energy_creates_no_entities(hass, mock_client):
         hass, {CONF_ENABLE_GAS: True, CONF_ENABLE_ELECTRICITY: False}
     )
 
-    assert count_by_platform(hass, entry) == {"sensor": 11, "binary_sensor": 2}
+    assert count_by_platform(hass, entry) == {"sensor": 18, "binary_sensor": 4}
     assert hass.states.get(f"sensor.{PREFIX}_electricity_meter_index") is None
     mock_client.async_get_data.assert_awaited_with(TEST_ACCOUNT, {"gas"})
 
@@ -160,7 +160,7 @@ async def test_disabling_an_energy_in_the_options_removes_its_entities(
 ):
     """No orphaned, permanently unavailable entities may be left behind."""
     entry = await setup_entry(hass)
-    assert count_by_platform(hass, entry)["sensor"] == 14
+    assert count_by_platform(hass, entry)["sensor"] == 23
 
     hass.config_entries.async_update_entry(
         entry, options={**ENTRY_OPTIONS, CONF_ENABLE_GAS: False}
@@ -172,8 +172,8 @@ async def test_disabling_an_energy_in_the_options_removes_its_entities(
         e.unique_id for e in er.async_entries_for_config_entry(registry, entry.entry_id)
     }
     assert not any("_gas_" in u for u in unique_ids)
-    # 3 electricity + 6 account sensors remain.
-    assert count_by_platform(hass, entry)["sensor"] == 9
+    # 5 electricity + 9 account sensors remain.
+    assert count_by_platform(hass, entry)["sensor"] == 14
 
 
 async def test_gas_states_carry_the_normalised_values(hass, mock_client):
@@ -221,6 +221,30 @@ async def test_account_states(hass, mock_client):
 
     pending = hass.states.get(f"binary_sensor.{PREFIX}_invoice_pending_payment")
     assert pending.state == "on"
+
+    referral = hass.states.get(f"sensor.{PREFIX}_referral_code")
+    assert referral.state == "MGM0000000"
+    assert referral.attributes["referral_link"] == (
+        "https://amigo.goldenergy.pt/MGM0000000"
+    )
+    assert hass.states.get(f"sensor.{PREFIX}_friends_referred").state == "2"
+    assert hass.states.get(f"binary_sensor.{PREFIX}_direct_debit").state == "on"
+    assert hass.states.get(f"binary_sensor.{PREFIX}_electronic_invoice").state == "on"
+
+
+async def test_supply_details_are_diagnostic_sensors(hass, mock_client):
+    entry = await setup_entry(hass)
+    registry = er.async_get(hass)
+
+    by_key = {
+        e.unique_id.removeprefix(f"{entry.entry_id}_"): e
+        for e in er.async_entries_for_config_entry(registry, entry.entry_id)
+    }
+    for key in ("gas_delivery_point", "gas_tier", "gas_meter_serial", "gas_campaign"):
+        assert by_key[key].entity_category is er.EntityCategory.DIAGNOSTIC, key
+
+    campaign = hass.states.get(f"sensor.{PREFIX}_gas_campaign")
+    assert campaign.state == "DIGITAL_01/26"
 
 
 async def test_availability_sensor_is_not_registered_by_default(hass, mock_client):

@@ -93,6 +93,33 @@
       },
       "billed_12m": {
         "name": "Faturado nos últimos 12 meses"
+      },
+      "gas_delivery_point": {
+        "name": "Ponto de entrega de gás (CUI)"
+      },
+      "gas_tier": {
+        "name": "Escalão de gás"
+      },
+      "gas_meter_serial": {
+        "name": "Nº de série do contador de gás"
+      },
+      "gas_campaign": {
+        "name": "Campanha de gás"
+      },
+      "electricity_meter_serial": {
+        "name": "Nº de série do contador de eletricidade"
+      },
+      "electricity_campaign": {
+        "name": "Campanha de eletricidade"
+      },
+      "contract_start": {
+        "name": "Início do contrato"
+      },
+      "referral_code": {
+        "name": "Código amigo"
+      },
+      "referral_friends": {
+        "name": "Amigos angariados"
       }
     },
     "binary_sensor": {
@@ -101,6 +128,12 @@
       },
       "available": {
         "name": "Serviço disponível"
+      },
+      "direct_debit": {
+        "name": "Débito direto"
+      },
+      "electronic_invoice": {
+        "name": "Fatura eletrónica"
       }
     }
   },

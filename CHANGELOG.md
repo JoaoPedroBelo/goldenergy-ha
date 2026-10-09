@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   binary sensors.
 - Long-term statistics: gas volume (m³), gas energy (kWh, derived from volume),
   electricity (kWh), and invoiced cost — readings spread over the days they cover.
+- Referral programme: referral code (with its shareable link and earnings) and
+  friends referred.
+- Contract start date; direct-debit and electronic-invoice binary sensors.
+- Supply details as diagnostic sensors: gas CUI and tier, meter serial number
+  (with meter number, digits, smart-meter flag) and active campaigns per energy.
 - Twice-daily polling (02:00 / 14:00).
 - English and Portuguese translations.
 - Statistics metadata in the shape of the running core: `mean_type` and

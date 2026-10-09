@@ -166,6 +166,23 @@ An account holds one or more supply addresses, each with one or more services
 (gas and/or electricity). `billingAccountNo` + service `no` is the pair every
 per-service endpoint takes. Carries NIF, IBAN, phone and address — **never log it**.
 
+### `billingAccounts/single` — extra fields used
+
+```json
+{"initDate": "2026-03-02T00:00:00",
+ "electronicInvoice": {"email": "...", "activationDate": "...", "active": true},
+ "directDebit": {"iban": "...", "adc": "...", "activationDate": "...", "maximumLimit": null},
+ "mgmVoucherCode": "MGM0000000",
+ "memberGetMemberInfo": {"totalCollectedFriends": 0, "totalProfit": 0}}
+```
+
+- `mgmVoucherCode` is the account's referral code; the customer area's share
+  buttons link to `https://amigo.goldenergy.pt/<code>`.
+- `memberGetMemberInfo` counts the friends brought in and what they earned; its
+  currency is not stated (both were 0 live).
+- `directDebit` is `null` when there is no SEPA mandate (assumed from the
+  front end; only the active case was observed). Never log its `iban`.
+
 ### `services/single` (gas)
 
 ```json
@@ -175,8 +192,13 @@ per-service endpoint takes. Carries NIF, IBAN, phone and address — **never log
                     "digits": 5, "smartMeter": false, "recordTypes": [0]},
           "meters": [{"...": "same as meter"}]},
   "electricity": null,
-  "gasProductList": [{"energyType": 0, "escalao": "1"}]}}
+  "gasProductList": [{"energyType": 0, "escalao": "1"}],
+  "campaignList": [{"no": "DIGITAL_01/26", "name": "", "initDate": "...",
+                    "endDate": null, "active": true}],
+  "loyaltyList": [], "priorityCustomer": false, "specialNeedsCustomer": false}}
 ```
+
+`campaignList[].name` was empty live, so the code in `no` identifies a campaign.
 
 ### `readings/last` / `readings/initial`
 

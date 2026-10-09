@@ -39,6 +39,9 @@ API_ENERGY_TYPE: Final = {ENERGY_GAS: 0, ENERGY_ELECTRICITY: 1}
 # --- Endpoints (verified live; see docs/API.md) ---
 API_BASE_URL: Final = "https://api-clientes-bc.goldenergy.pt"
 PORTAL_ORIGIN: Final = "https://clientes.goldenergy.pt"
+# The customer area's own "share your referral code" buttons link here, followed
+# by the account's ``mgmVoucherCode``.
+REFERRAL_LINK_BASE: Final = "https://amigo.goldenergy.pt/"
 
 # The legacy login: same credentials as the web form, but no reCAPTCHA. The web
 # form's own ``/rtoken`` validates a reCAPTCHA v3 token server-side, which a
@@ -68,6 +71,11 @@ POLL_MINUTE: Final = 0
 SENSOR_METER_INDEX: Final = "meter_index"
 SENSOR_LAST_CONSUMPTION: Final = "last_consumption"
 SENSOR_LAST_READING_DATE: Final = "last_reading_date"
+# Supply details, as diagnostic sensors.
+SENSOR_DELIVERY_POINT: Final = "delivery_point"
+SENSOR_METER_SERIAL: Final = "meter_serial"
+SENSOR_TIER: Final = "tier"
+SENSOR_CAMPAIGN: Final = "campaign"
 # Gas only: the same figures in kWh, at the conversion factor.
 SENSOR_METER_INDEX_ENERGY: Final = "meter_index_energy"
 SENSOR_LAST_CONSUMPTION_ENERGY: Final = "last_consumption_energy"
@@ -79,9 +87,14 @@ SENSOR_LAST_INVOICE_TOTAL: Final = "last_invoice_total"
 SENSOR_LAST_INVOICE_DUE: Final = "last_invoice_due"
 SENSOR_AMOUNT_DUE: Final = "amount_due"
 SENSOR_BILLED_12M: Final = "billed_12m"
+SENSOR_CONTRACT_START: Final = "contract_start"
+SENSOR_REFERRAL_CODE: Final = "referral_code"
+SENSOR_REFERRAL_FRIENDS: Final = "referral_friends"
 
 BINARY_SENSOR_AVAILABLE: Final = "available"
 BINARY_SENSOR_INVOICE_PENDING: Final = "invoice_pending"
+BINARY_SENSOR_ELECTRONIC_INVOICE: Final = "electronic_invoice"
+BINARY_SENSOR_DIRECT_DEBIT: Final = "direct_debit"
 
 # --- coordinator.data keys ---
 DATA_AVAILABLE: Final = "available"
@@ -94,6 +107,14 @@ DATA_ACCOUNT_STATUS: Final = "account_status"
 DATA_NEXT_READING_DATE: Final = "next_reading_date"
 DATA_BALANCE: Final = "balance"
 DATA_DIRECT_DEBIT: Final = "direct_debit"
+DATA_ELECTRONIC_INVOICE: Final = "electronic_invoice"
+DATA_CONTRACT_START: Final = "contract_start"
+# The member-get-member programme: the account's code, the shareable link built
+# from it, and what it has earned so far.
+DATA_REFERRAL_CODE: Final = "referral_code"
+DATA_REFERRAL_LINK: Final = "referral_link"
+DATA_REFERRAL_FRIENDS: Final = "referral_friends"
+DATA_REFERRAL_EARNINGS: Final = "referral_earnings"
 
 DATA_LAST_INVOICE_TOTAL: Final = "last_invoice_total"
 DATA_LAST_INVOICE_DUE: Final = "last_invoice_due"
@@ -114,6 +135,10 @@ DATA_SERVICE_STATUS: Final = "service_status"
 DATA_DELIVERY_POINT: Final = "delivery_point"
 DATA_TIER: Final = "tier"
 DATA_METER_SERIAL: Final = "meter_serial"
+DATA_METER_NUMBER: Final = "meter_number"
+DATA_METER_DIGITS: Final = "meter_digits"
+# Codes of the service's active campaigns, comma-joined (e.g. "DIGITAL_08/26").
+DATA_CAMPAIGNS: Final = "campaigns"
 DATA_SMART_METER: Final = "smart_meter"
 # [{"iso": "2026-07-30", "index": 320.0}], oldest first. ``index`` is the
 # cumulative meter reading: m³ for gas, kWh for electricity.
@@ -140,3 +165,8 @@ ATTR_INVOICE_NUMBER: Final = "invoice_number"
 ATTR_POSTING_DATE: Final = "posting_date"
 ATTR_CONVERSION_FACTOR: Final = "conversion_factor"
 ATTR_DIRECT_DEBIT: Final = "direct_debit"
+ATTR_REFERRAL_LINK: Final = "referral_link"
+ATTR_REFERRAL_EARNINGS: Final = "referral_earnings"
+ATTR_METER_NUMBER: Final = "meter_number"
+ATTR_METER_DIGITS: Final = "meter_digits"
+ATTR_SMART_METER: Final = "smart_meter"

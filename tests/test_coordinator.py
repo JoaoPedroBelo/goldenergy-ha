@@ -100,6 +100,58 @@ def test_normalise_extracts_the_account(raw_payload):
     assert data["direct_debit"] is True
 
 
+def test_normalise_extracts_the_referral_programme(raw_payload):
+    data = normalise(raw_payload)
+
+    assert data["referral_code"] == "MGM0000000"
+    assert data["referral_link"] == "https://amigo.goldenergy.pt/MGM0000000"
+    assert data["referral_friends"] == 2
+    assert data["referral_earnings"] == 20.0
+
+
+def test_an_account_without_a_referral_code_has_no_link(raw_payload):
+    raw_payload["account"]["mgmVoucherCode"] = "  "
+    raw_payload["account"]["memberGetMemberInfo"] = None
+    data = normalise(raw_payload)
+
+    assert "referral_code" not in data
+    assert "referral_link" not in data
+    assert "referral_friends" not in data
+
+
+def test_normalise_extracts_contract_start_and_billing_preferences(raw_payload):
+    data = normalise(raw_payload)
+
+    assert data["contract_start"] == date(2025, 10, 1)
+    assert data["electronic_invoice"] is True
+    assert data["direct_debit"] is True
+
+
+def test_paper_billing_and_no_direct_debit_read_as_off(raw_payload):
+    raw_payload["account"]["electronicInvoice"] = {"active": False}
+    raw_payload["account"]["directDebit"] = None
+    data = normalise(raw_payload)
+
+    assert data["electronic_invoice"] is False
+    assert data["direct_debit"] is False
+
+
+def test_normalise_extracts_the_supply_details(raw_payload):
+    gas = normalise(raw_payload)["services"]["gas"]
+
+    assert gas["meter_number"] == "CNTGAS0000000"
+    assert gas["meter_digits"] == 5
+    # Only active campaigns, by code (``name`` is empty live).
+    assert gas["campaigns"] == "DIGITAL_01/26"
+
+
+def test_a_service_without_active_campaigns_reports_none(raw_payload):
+    raw_payload["services"]["gas"]["service"]["campaignList"] = []
+    gas = normalise(raw_payload)["services"]["gas"]
+
+    assert gas["campaigns"] is None
+
+
 def test_normalise_extracts_the_latest_invoice(raw_payload):
     data = normalise(raw_payload)
 

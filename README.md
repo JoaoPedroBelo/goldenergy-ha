@@ -27,6 +27,8 @@ behind it. This integration logs in and reads that same API — no HTML scraping
 - **🧾 Billing** — last invoice total and due date, amount still owed, total billed
   over the last 12 months, account balance, and an unpaid-invoice flag
 - **📅 Next reading date** — when the next meter reading is expected
+- **🤝 Referral code** — your code amigo, its shareable link and how many friends
+  it has brought in
 - **🏠 Multi-account** — one entry per billing account, each with its own device
 - **🕐 Low-profile polling** — twice a day (02:00 & 14:00), no tight loops
 - **🇬🇧🇵🇹 Localised** — English and Portuguese
@@ -71,6 +73,9 @@ removes its entities.
 | Electricity meter index | kWh | cumulative, all tariff periods summed |
 | Electricity consumption since previous reading | kWh | |
 | Electricity last reading date | date | |
+| Gas delivery point (CUI), gas tier | text | diagnostic |
+| Gas / electricity meter serial number | text | diagnostic; attributes: meter number, digits, smart meter |
+| Gas / electricity campaign | text | diagnostic; active campaign codes |
 
 ### Account
 
@@ -82,6 +87,11 @@ removes its entities.
 | Last invoice due date | date |
 | Amount due | € |
 | Billed last 12 months | € |
+| Referral code | text — attributes: shareable link, earnings |
+| Friends referred | count |
+| Contract start | date (diagnostic) |
+| Direct debit *(binary)* | on/off |
+| Electronic invoice *(binary)* | on/off |
 | Invoice pending payment *(binary)* | on/off |
 | Service available *(binary, diagnostic, disabled by default)* | on/off |
 

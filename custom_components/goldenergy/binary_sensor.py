@@ -16,8 +16,12 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     BINARY_SENSOR_AVAILABLE,
+    BINARY_SENSOR_DIRECT_DEBIT,
+    BINARY_SENSOR_ELECTRONIC_INVOICE,
     BINARY_SENSOR_INVOICE_PENDING,
     DATA_AVAILABLE,
+    DATA_DIRECT_DEBIT,
+    DATA_ELECTRONIC_INVOICE,
     DATA_INVOICE_PENDING,
     DOMAIN,
 )
@@ -41,6 +45,18 @@ BINARY_SENSORS: tuple[GoldenergyBinarySensorDescription, ...] = (
         translation_key=BINARY_SENSOR_INVOICE_PENDING,
         data_key=DATA_INVOICE_PENDING,
         icon="mdi:cash-clock",
+    ),
+    GoldenergyBinarySensorDescription(
+        key=BINARY_SENSOR_DIRECT_DEBIT,
+        translation_key=BINARY_SENSOR_DIRECT_DEBIT,
+        data_key=DATA_DIRECT_DEBIT,
+        icon="mdi:bank-transfer",
+    ),
+    GoldenergyBinarySensorDescription(
+        key=BINARY_SENSOR_ELECTRONIC_INVOICE,
+        translation_key=BINARY_SENSOR_ELECTRONIC_INVOICE,
+        data_key=DATA_ELECTRONIC_INVOICE,
+        icon="mdi:email-outline",
     ),
     GoldenergyBinarySensorDescription(
         key=BINARY_SENSOR_AVAILABLE,

@@ -18,8 +18,8 @@ graph TD
         COORD["coordinator.py<br/>GoldenergyCoordinator<br/>normalises → self.data"]
         STATS["statistics.py<br/>external statistic import"]
         ENT["entity.py<br/>shared device info"]
-        SENS["sensor.py<br/>up to 14 sensors"]
-        BIN["binary_sensor.py<br/>2 binary sensors"]
+        SENS["sensor.py<br/>up to 23 sensors"]
+        BIN["binary_sensor.py<br/>4 binary sensors"]
     end
     API["api.py<br/>GoldenergyClient<br/>(all API HTTP + login)"]
     REST["api-clientes-bc.goldenergy.pt<br/>ASP.NET REST API"]
@@ -107,6 +107,10 @@ Per energy (only for enabled energies):
 | Electricity meter index | `electricity_meter_index` | kWh | `total` |
 | Electricity consumption since previous reading | `electricity_last_consumption` | kWh | `measurement` |
 | Electricity last reading date | `electricity_last_reading_date` | — | — (`date`) |
+| Gas delivery point (CUI) *(diagnostic)* | `gas_delivery_point` | — | — |
+| Gas tier *(diagnostic)* | `gas_tier` | — | — |
+| Gas / electricity meter serial number *(diagnostic)* | `<energy>_meter_serial` | — | — |
+| Gas / electricity campaign *(diagnostic)* | `<energy>_campaign` | — | — |
 
 Account level (always):
 
@@ -118,6 +122,11 @@ Account level (always):
 | Last invoice due date | `last_invoice_due` | — | — (`date`) |
 | Amount due | `amount_due` | € | `total` |
 | Billed last 12 months | `billed_12m` | € | `total` |
+| Contract start *(diagnostic)* | `contract_start` | — | — (`date`) |
+| Referral code | `referral_code` | — | — |
+| Friends referred | `referral_friends` | — | — |
+| Direct debit *(binary)* | `direct_debit` | — | — |
+| Electronic invoice *(binary)* | `electronic_invoice` | — | — |
 | Invoice pending payment *(binary)* | `invoice_pending` | — | — |
 | Service available *(binary, diagnostic, off by default)* | `available` | — | — |
 

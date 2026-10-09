@@ -77,6 +77,9 @@ def account_payload() -> dict:
         "balanceAmount": 12.34,
         "lastInvoice": None,
         "directDebit": {"iban": "PT50000000000000000000000", "adc": "00000000"},
+        "electronicInvoice": {"email": "user@example.pt", "active": True},
+        "mgmVoucherCode": "MGM0000000",
+        "memberGetMemberInfo": {"totalCollectedFriends": 2, "totalProfit": 20},
         "services": [
             {"no": TEST_GAS_SERVICE, "type": 1, "gas": None, "electricity": None},
             {
@@ -106,6 +109,10 @@ def gas_service_payload() -> dict:
         "endDate": None,
         "gas": {"energyType": 0, "cui": TEST_CUI, "escalao": "1", "meter": meter},
         "electricity": None,
+        "campaignList": [
+            {"no": "DIGITAL_01/26", "name": "", "active": True},
+            {"no": "OLD_01/25", "name": "", "active": False},
+        ],
     }
 
 
@@ -213,6 +220,12 @@ def mock_coordinator():
         "next_reading_date": None,
         "balance": 12.34,
         "direct_debit": True,
+        "electronic_invoice": True,
+        "contract_start": None,
+        "referral_code": "MGM0000000",
+        "referral_link": "https://amigo.goldenergy.pt/MGM0000000",
+        "referral_friends": 2,
+        "referral_earnings": 20.0,
         "last_invoice_total": 12.34,
         "last_invoice_number": "FT 2026-07-23",
         "amount_due": 12.34,
@@ -224,6 +237,10 @@ def mock_coordinator():
                 "delivery_point": TEST_CUI,
                 "tier": "1",
                 "meter_serial": "00000000000000",
+                "meter_number": "CNTGAS0000000",
+                "meter_digits": 5,
+                "smart_meter": False,
+                "campaigns": "DIGITAL_01/26",
                 "meter_index": 320.0,
                 "meter_index_energy": 3584.0,
                 "conversion_factor": 11.2,

@@ -25,9 +25,12 @@ from .const import (
     DATA_AVAILABLE,
     DATA_BALANCE,
     DATA_BILLED_12M,
+    DATA_CAMPAIGNS,
+    DATA_CONTRACT_START,
     DATA_CONVERSION_FACTOR,
     DATA_DELIVERY_POINT,
     DATA_DIRECT_DEBIT,
+    DATA_ELECTRONIC_INVOICE,
     DATA_INVOICE_PENDING,
     DATA_INVOICE_SERIES,
     DATA_LAST_CONSUMPTION,
@@ -41,11 +44,17 @@ from .const import (
     DATA_LAST_INVOICE_POSTED,
     DATA_LAST_INVOICE_TOTAL,
     DATA_LAST_READING_ISO,
+    DATA_METER_DIGITS,
     DATA_METER_INDEX,
     DATA_METER_INDEX_ENERGY,
+    DATA_METER_NUMBER,
     DATA_METER_SERIAL,
     DATA_NEXT_READING_DATE,
     DATA_READINGS,
+    DATA_REFERRAL_CODE,
+    DATA_REFERRAL_EARNINGS,
+    DATA_REFERRAL_FRIENDS,
+    DATA_REFERRAL_LINK,
     DATA_SERVICE_NO,
     DATA_SERVICE_STATUS,
     DATA_SERVICES,
@@ -57,6 +66,7 @@ from .const import (
     ENERGY_GAS,
     POLL_HOURS,
     POLL_MINUTE,
+    REFERRAL_LINK_BASE,
 )
 from .statistics import async_import_statistics
 
@@ -206,6 +216,26 @@ class GoldenergyCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         data[DATA_NEXT_READING_DATE] = _parse_date(account.get("nextReadingDate"))
         data[DATA_BALANCE] = _to_float(account.get("balanceAmount"))
         data[DATA_DIRECT_DEBIT] = isinstance(account.get("directDebit"), dict)
+        data[DATA_CONTRACT_START] = _parse_date(account.get("initDate"))
+
+        invoice = account.get("electronicInvoice")
+        data[DATA_ELECTRONIC_INVOICE] = isinstance(invoice, dict) and bool(
+            invoice.get("active")
+        )
+
+        code = account.get("mgmVoucherCode")
+        if isinstance(code, str) and code.strip():
+            data[DATA_REFERRAL_CODE] = code.strip()
+            data[DATA_REFERRAL_LINK] = f"{REFERRAL_LINK_BASE}{code.strip()}"
+        member = account.get("memberGetMemberInfo")
+        if isinstance(member, dict):
+            friends = member.get("totalCollectedFriends")
+            data[DATA_REFERRAL_FRIENDS] = (
+                friends
+                if isinstance(friends, int) and not isinstance(friends, bool)
+                else None
+            )
+            data[DATA_REFERRAL_EARNINGS] = _to_float(member.get("totalProfit"))
 
     @staticmethod
     def _add_invoices(data: dict[str, Any], invoices: Any, today: date) -> None:
@@ -263,7 +293,10 @@ def _normalise_service(
         DATA_DELIVERY_POINT: supply.get("cui"),
         DATA_TIER: supply.get("escalao"),
         DATA_METER_SERIAL: meter.get("serialNo"),
+        DATA_METER_NUMBER: meter.get("meterNo"),
+        DATA_METER_DIGITS: meter.get("digits"),
         DATA_SMART_METER: meter.get("smartMeter"),
+        DATA_CAMPAIGNS: _active_campaigns(service.get("campaignList")),
     }
 
     readings = _parse_readings(payload.get("readings"))
@@ -290,6 +323,22 @@ def _normalise_service(
         if energy == ENERGY_GAS:
             data[DATA_LAST_CONSUMPTION_ENERGY] = round(delta * conversion_factor, 2)
     return data
+
+
+def _active_campaigns(campaigns: Any) -> str | None:
+    """Return the active campaign codes, comma-joined, or ``None`` if there is none.
+
+    Campaigns arrive as ``[{"no": "DIGITAL_08/26", "name": "", "active": true}]``;
+    ``name`` was empty live, so the code is what identifies them.
+    """
+    if not isinstance(campaigns, list):
+        return None
+    codes = [
+        str(c.get("name") or c.get("no")).strip()
+        for c in campaigns
+        if isinstance(c, dict) and c.get("active") and (c.get("name") or c.get("no"))
+    ]
+    return ", ".join(codes) or None
 
 
 def _parse_readings(items: Any) -> list[dict[str, Any]]:

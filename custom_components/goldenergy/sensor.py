@@ -22,7 +22,12 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CURRENCY_EURO, UnitOfEnergy, UnitOfVolume
+from homeassistant.const import (
+    CURRENCY_EURO,
+    EntityCategory,
+    UnitOfEnergy,
+    UnitOfVolume,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -30,21 +35,26 @@ from .const import (
     ATTR_CONVERSION_FACTOR,
     ATTR_DAYS,
     ATTR_DELIVERY_POINT,
-    ATTR_DIRECT_DEBIT,
     ATTR_INVOICE_NUMBER,
+    ATTR_METER_DIGITS,
+    ATTR_METER_NUMBER,
     ATTR_METER_SERIAL,
     ATTR_PERIOD_END,
     ATTR_PERIOD_START,
     ATTR_POSTING_DATE,
     ATTR_READING_DATE,
+    ATTR_REFERRAL_EARNINGS,
+    ATTR_REFERRAL_LINK,
     ATTR_SERVICE_NO,
+    ATTR_SMART_METER,
     ATTR_TIER,
     DATA_AMOUNT_DUE,
     DATA_BALANCE,
     DATA_BILLED_12M,
+    DATA_CAMPAIGNS,
+    DATA_CONTRACT_START,
     DATA_CONVERSION_FACTOR,
     DATA_DELIVERY_POINT,
-    DATA_DIRECT_DEBIT,
     DATA_LAST_CONSUMPTION,
     DATA_LAST_CONSUMPTION_DAYS,
     DATA_LAST_CONSUMPTION_ENERGY,
@@ -56,11 +66,18 @@ from .const import (
     DATA_LAST_INVOICE_POSTED,
     DATA_LAST_INVOICE_TOTAL,
     DATA_LAST_READING_ISO,
+    DATA_METER_DIGITS,
     DATA_METER_INDEX,
     DATA_METER_INDEX_ENERGY,
+    DATA_METER_NUMBER,
     DATA_METER_SERIAL,
     DATA_NEXT_READING_DATE,
+    DATA_REFERRAL_CODE,
+    DATA_REFERRAL_EARNINGS,
+    DATA_REFERRAL_FRIENDS,
+    DATA_REFERRAL_LINK,
     DATA_SERVICE_NO,
+    DATA_SMART_METER,
     DATA_TIER,
     DOMAIN,
     ENERGY_ELECTRICITY,
@@ -68,6 +85,9 @@ from .const import (
     SENSOR_AMOUNT_DUE,
     SENSOR_BALANCE,
     SENSOR_BILLED_12M,
+    SENSOR_CAMPAIGN,
+    SENSOR_CONTRACT_START,
+    SENSOR_DELIVERY_POINT,
     SENSOR_LAST_CONSUMPTION,
     SENSOR_LAST_CONSUMPTION_ENERGY,
     SENSOR_LAST_INVOICE_DUE,
@@ -75,7 +95,11 @@ from .const import (
     SENSOR_LAST_READING_DATE,
     SENSOR_METER_INDEX,
     SENSOR_METER_INDEX_ENERGY,
+    SENSOR_METER_SERIAL,
     SENSOR_NEXT_READING_DATE,
+    SENSOR_REFERRAL_CODE,
+    SENSOR_REFERRAL_FRIENDS,
+    SENSOR_TIER,
 )
 from .coordinator import GoldenergyCoordinator
 from .entity import GoldenergyEntity
@@ -110,6 +134,33 @@ _METER_ATTRIBUTES = (
 def _key(energy: str, suffix: str) -> str:
     """Return a per-energy entity key, e.g. ``gas_meter_index``."""
     return f"{energy}_{suffix}"
+
+
+def _supply_sensors(energy: str) -> tuple[GoldenergySensorDescription, ...]:
+    """Diagnostic sensors describing one energy's supply and meter."""
+    return (
+        GoldenergySensorDescription(
+            key=_key(energy, SENSOR_METER_SERIAL),
+            translation_key=_key(energy, SENSOR_METER_SERIAL),
+            energy=energy,
+            data_key=DATA_METER_SERIAL,
+            icon="mdi:counter",
+            entity_category=EntityCategory.DIAGNOSTIC,
+            attribute_keys=(
+                (ATTR_METER_NUMBER, DATA_METER_NUMBER),
+                (ATTR_METER_DIGITS, DATA_METER_DIGITS),
+                (ATTR_SMART_METER, DATA_SMART_METER),
+            ),
+        ),
+        GoldenergySensorDescription(
+            key=_key(energy, SENSOR_CAMPAIGN),
+            translation_key=_key(energy, SENSOR_CAMPAIGN),
+            energy=energy,
+            data_key=DATA_CAMPAIGNS,
+            icon="mdi:tag-outline",
+            entity_category=EntityCategory.DIAGNOSTIC,
+        ),
+    )
 
 
 GAS_SENSORS: tuple[GoldenergySensorDescription, ...] = (
@@ -180,6 +231,23 @@ GAS_SENSORS: tuple[GoldenergySensorDescription, ...] = (
         icon="mdi:calendar-check",
         device_class=SensorDeviceClass.DATE,
     ),
+    GoldenergySensorDescription(
+        key=_key(ENERGY_GAS, SENSOR_DELIVERY_POINT),
+        translation_key=_key(ENERGY_GAS, SENSOR_DELIVERY_POINT),
+        energy=ENERGY_GAS,
+        data_key=DATA_DELIVERY_POINT,
+        icon="mdi:map-marker",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    GoldenergySensorDescription(
+        key=_key(ENERGY_GAS, SENSOR_TIER),
+        translation_key=_key(ENERGY_GAS, SENSOR_TIER),
+        energy=ENERGY_GAS,
+        data_key=DATA_TIER,
+        icon="mdi:stairs",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    *_supply_sensors(ENERGY_GAS),
 )
 
 ELECTRICITY_SENSORS: tuple[GoldenergySensorDescription, ...] = (
@@ -215,6 +283,7 @@ ELECTRICITY_SENSORS: tuple[GoldenergySensorDescription, ...] = (
         icon="mdi:calendar-check",
         device_class=SensorDeviceClass.DATE,
     ),
+    *_supply_sensors(ENERGY_ELECTRICITY),
 )
 
 ACCOUNT_SENSORS: tuple[GoldenergySensorDescription, ...] = (
@@ -234,7 +303,6 @@ ACCOUNT_SENSORS: tuple[GoldenergySensorDescription, ...] = (
         native_unit_of_measurement=CURRENCY_EURO,
         state_class=SensorStateClass.TOTAL,
         suggested_display_precision=2,
-        attribute_keys=((ATTR_DIRECT_DEBIT, DATA_DIRECT_DEBIT),),
     ),
     GoldenergySensorDescription(
         key=SENSOR_LAST_INVOICE_TOTAL,
@@ -278,6 +346,30 @@ ACCOUNT_SENSORS: tuple[GoldenergySensorDescription, ...] = (
         native_unit_of_measurement=CURRENCY_EURO,
         state_class=SensorStateClass.TOTAL,
         suggested_display_precision=2,
+    ),
+    GoldenergySensorDescription(
+        key=SENSOR_CONTRACT_START,
+        translation_key=SENSOR_CONTRACT_START,
+        data_key=DATA_CONTRACT_START,
+        icon="mdi:calendar-start-outline",
+        device_class=SensorDeviceClass.DATE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    GoldenergySensorDescription(
+        key=SENSOR_REFERRAL_CODE,
+        translation_key=SENSOR_REFERRAL_CODE,
+        data_key=DATA_REFERRAL_CODE,
+        icon="mdi:account-multiple-plus",
+        attribute_keys=(
+            (ATTR_REFERRAL_LINK, DATA_REFERRAL_LINK),
+            (ATTR_REFERRAL_EARNINGS, DATA_REFERRAL_EARNINGS),
+        ),
+    ),
+    GoldenergySensorDescription(
+        key=SENSOR_REFERRAL_FRIENDS,
+        translation_key=SENSOR_REFERRAL_FRIENDS,
+        data_key=DATA_REFERRAL_FRIENDS,
+        icon="mdi:account-heart",
     ),
 )
 

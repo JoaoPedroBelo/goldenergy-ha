@@ -110,8 +110,36 @@ def test_account_sensors_read_the_account_level_data(
 
     assert balance.native_value == 12.34
     assert balance.native_unit_of_measurement == "€"
-    assert balance.extra_state_attributes == {"direct_debit": True}
+    assert balance.extra_state_attributes is None
     assert due.native_value == 12.34
+
+
+def test_referral_code_exposes_the_shareable_link(mock_coordinator, mock_config_entry):
+    sensor = _sensor(mock_coordinator, mock_config_entry, "referral_code")
+
+    assert sensor.native_value == "MGM0000000"
+    assert sensor.extra_state_attributes == {
+        "referral_link": "https://amigo.goldenergy.pt/MGM0000000",
+        "referral_earnings": 20.0,
+    }
+
+
+def test_meter_serial_exposes_the_meter_details(mock_coordinator, mock_config_entry):
+    sensor = _sensor(mock_coordinator, mock_config_entry, "gas_meter_serial")
+
+    assert sensor.native_value == "00000000000000"
+    assert sensor.extra_state_attributes == {
+        "meter_number": "CNTGAS0000000",
+        "meter_digits": 5,
+        "smart_meter": False,
+    }
+
+
+def test_billing_preference_binary_sensors(mock_coordinator, mock_config_entry):
+    assert _binary_sensor(mock_coordinator, mock_config_entry, "direct_debit").is_on
+    assert _binary_sensor(
+        mock_coordinator, mock_config_entry, "electronic_invoice"
+    ).is_on
 
 
 def test_sensors_return_none_when_the_energy_is_missing(

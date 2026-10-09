@@ -93,6 +93,33 @@
       },
       "billed_12m": {
         "name": "Billed last 12 months"
+      },
+      "gas_delivery_point": {
+        "name": "Gas delivery point (CUI)"
+      },
+      "gas_tier": {
+        "name": "Gas tier"
+      },
+      "gas_meter_serial": {
+        "name": "Gas meter serial number"
+      },
+      "gas_campaign": {
+        "name": "Gas campaign"
+      },
+      "electricity_meter_serial": {
+        "name": "Electricity meter serial number"
+      },
+      "electricity_campaign": {
+        "name": "Electricity campaign"
+      },
+      "contract_start": {
+        "name": "Contract start"
+      },
+      "referral_code": {
+        "name": "Referral code"
+      },
+      "referral_friends": {
+        "name": "Friends referred"
       }
     },
     "binary_sensor": {
@@ -101,6 +128,12 @@
       },
       "available": {
         "name": "Service available"
+      },
+      "direct_debit": {
+        "name": "Direct debit"
+      },
+      "electronic_invoice": {
+        "name": "Electronic invoice"
       }
     }
   },
