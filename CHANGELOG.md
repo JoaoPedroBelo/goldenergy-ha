@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-10-09
+
+### Added
+
+- `goldenergy.submit_reading` action: communicates a meter reading to Goldenergy
+  (gas, or one value per register for electricity), for today or yesterday, by
+  hand or from an automation.
+  - Checked before sending: the energy must be tracked, one value per meter
+    register, and never below the last registered reading.
+  - Goldenergy's refusals surface as Home Assistant errors with its own reason;
+    above-average consumption asks to resend with `confirm_above_average`.
+  - A successful submission refreshes the entry so the new reading shows up.
+
 ## [0.1.0] - 2026-10-09
 
 ### Added
