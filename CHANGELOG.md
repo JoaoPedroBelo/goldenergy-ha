@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - Unreleased
+## [0.1.0] - 2026-10-09
 
 ### Added
 
@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   electricity (kWh), and invoiced cost — readings spread over the days they cover.
 - Twice-daily polling (02:00 / 14:00).
 - English and Portuguese translations.
+- Statistics metadata in the shape of the running core: `mean_type` and
+  `unit_class` on cores that declare them (required from Home Assistant
+  2026.11), `has_mean` on older ones.
 
 ### Known gaps
 

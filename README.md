@@ -2,6 +2,7 @@
 
 [![Tests](https://img.shields.io/github/actions/workflow/status/JoaoPedroBelo/goldenergy-ha/tests.yml?style=for-the-badge&label=Tests)](https://github.com/JoaoPedroBelo/goldenergy-ha/actions/workflows/tests.yml)
 [![HACS Validation](https://img.shields.io/github/actions/workflow/status/JoaoPedroBelo/goldenergy-ha/validate.yml?style=for-the-badge&label=HACS)](https://github.com/JoaoPedroBelo/goldenergy-ha/actions/workflows/validate.yml)
+[![Release](https://img.shields.io/github/v/release/JoaoPedroBelo/goldenergy-ha?style=for-the-badge)](https://github.com/JoaoPedroBelo/goldenergy-ha/releases)
 [![License](https://img.shields.io/github/license/JoaoPedroBelo/goldenergy-ha?style=for-the-badge)](LICENSE)
 
 ---
@@ -34,7 +35,11 @@ behind it. This integration logs in and reads that same API — no HTML scraping
 
 ### Installation via HACS
 
-1. HACS → ⋮ → **Custom repositories** → add this repository as an *Integration*
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=JoaoPedroBelo&repository=goldenergy-ha&category=integration)
+
+1. Click the badge above, or search for **Goldenergy** in HACS. Until it is listed
+   in the default store, add it first: HACS → ⋮ → **Custom repositories** →
+   `https://github.com/JoaoPedroBelo/goldenergy-ha`, category *Integration*
 2. Install **Goldenergy** and restart Home Assistant
 
 ### Configuration
